@@ -1,0 +1,3 @@
+MOV AH,0
+INT 1AH
+
