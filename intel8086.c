@@ -42,7 +42,7 @@ void PrintFlags()
     printf("FLAGS:");
 
     if (FLAGS & 0x800)printf("O");
-	else printf("o");
+    else printf("o");
     if (FLAGS & 0x400)printf("D");
     else printf("d");
     if (FLAGS & 0x200)printf("I");
@@ -91,24 +91,25 @@ void ChkZF(unsigned short data)
 void SHL1(unsigned char tmp)
 {
 
-			switch (tmp&0x7)
+	switch (tmp&0x7)
+	{
+		case 0:
+			printf("SHL AL,1");
+			FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
+			AX = (AH<<8) + (AL<<1);
+			ChkPF(AX);
+			ChkZF(AX);
+			if(CF^SF)
 			{
-				case 0:
-				printf("SHL AL,1");
-				FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
-				AX = (AH<<8) + (AL<<1);
-				ChkPF(AX);
-				ChkZF(AX);
-				if(CF^SF)
-				{
-					OF(1);
-				}	
-				break;
-				default:
-				printf("Missing SHL1 Arg!\n");
-				exit(1);
-			
-			}
+				FLAGS |= 1<<11;
+			}	
+			break;
+		default:
+			printf("Missing SHL1 Arg!\n");
+			exit(1);
+		
+	}
+
 }
 
 
@@ -121,14 +122,37 @@ int DoOP(unsigned char OP) {
 	
 	switch (OP)
 	{
+		case 0x32:
+			printf("XOR");
+			//lets trial some mod reg r/w shit
+			if(!(ram[PC+1]&0xC0)) exit(1);
+			switch (ram[PC+1]&0x3F)
+			{
+				case 0x24:
+					printf(" AH,AH");
+					AX = ((AX&0xFF00)^(AX&0xFF00)) + AL;
+					ChkZF(AX);
+					ChkPF(AX);
+					//check if neg
+					if(AX&0x8000) FLAGS |= 0x80;
+					else FLAGS &= 0xF7F;
+					//zeros Z and O
+					FLAGS &= 0x7FE;
+					break;
+				default:
+					break;
+					
+			}
+			printf("2nd: %.2X",ram[PC+1]);
+			PC += 2;
+			break;			
 		case 0x71:
 			printf("JNO");
-		//	if (!OF)
-		//	{
-				
-		//	}
-			//else
-			 PC += 2;
+			if (!OF)
+			{
+				PC += ram[PC+1] + 2;		
+			}
+			else PC += 2;
 			break;
 		case 0x73:
 			printf("JNC");
@@ -146,6 +170,14 @@ int DoOP(unsigned char OP) {
 			}
 			else PC += 2;
 			break;
+		case 0x76:
+			printf("JBE");
+			if(ZF || CF)
+			{
+				PC += ram[PC+1] + 2;
+			}
+			else PC += 2;
+			break; 
 		case 0x79:
 			printf("JNS");
 			if (!SF)
@@ -168,7 +200,7 @@ int DoOP(unsigned char OP) {
 			FLAGS = (FLAGS & 0xF00) + AH;
 			if(CF^SF)
 			{
-				OF(1);
+				FLAGS |= 1<<11;
 			}
 			PC++;
 			break;
@@ -219,7 +251,7 @@ int DoOP(unsigned char OP) {
 				ChkZF(AX);
 				if(CF^SF)
 				{
-					OF(1);
+					FLAGS |= 1<<11;
 				}	
 				PC +=2;
 			}else exit(1);
@@ -243,5 +275,8 @@ int DoOP(unsigned char OP) {
 			printf("Unknown OP Code: %.2X\n", OP);
 			exit (1);
 			
+
 	}
+	IP = PC & 0xFFFF;
 }
+
