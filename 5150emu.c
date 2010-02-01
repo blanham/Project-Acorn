@@ -55,6 +55,7 @@ int MainLoop()
 	PC = 0xFFFF0;
 	while(1)
 	{
+	//need to fix so it uses IP + CS
 	DoOP(ram[PC]);
 	printf(" \n");
 	PrintFlags();

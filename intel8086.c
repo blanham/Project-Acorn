@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+//tracer enable/disable
+#define TRACE
 int cycles;
 //need to use IP in order to be like actual Processor
 int PC;
@@ -98,7 +100,7 @@ void SHL1(unsigned char tmp)
 			FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
 			AX = (AH<<8) + (AL<<1);
 			ChkPF(AX);
-			ChkZF(AX);
+			CHKZF(AX);
 			if(CF^SF)
 			{
 				FLAGS |= 1<<11;
@@ -131,7 +133,7 @@ int DoOP(unsigned char OP) {
 				case 0x24:
 					printf(" AH,AH");
 					AX = ((AX&0xFF00)^(AX&0xFF00)) + AL;
-					ChkZF(AX);
+					CHKZF(AX);
 					ChkPF(AX);
 					//check if neg
 					if(AX&0x8000) FLAGS |= 0x80;
@@ -145,56 +147,16 @@ int DoOP(unsigned char OP) {
 			}
 			printf("2nd: %.2X",ram[PC+1]);
 			PC += 2;
-			break;			
-		case 0x71:
-			printf("JNO");
-			if (!OF)
-			{
-				PC += ram[PC+1] + 2;		
-			}
-			else PC += 2;
-			break;
-		case 0x73:
-			printf("JNC");
-			if (!CF)
-			{
-				PC += ram[PC+1] + 2;
-			}
-			else PC += 2;
-			break;
-		case 0x75:
-			printf("JNZ");
-			if (!ZF)
-			{
-				PC += ram[PC+1] + 2;
-			}
-			else PC += 2;
-			break;
-		case 0x76:
-			printf("JBE");
-			if(ZF || CF)
-			{
-				PC += ram[PC+1] + 2;
-			}
-			else PC += 2;
-			break; 
-		case 0x79:
-			printf("JNS");
-			if (!SF)
-			{
-				PC += ram[PC+1] + 2;
-			}
-			else PC += 2;
-			break;
-
-		case 0x7B:
-			printf("JNP");
-			if (!PF)
-			{
-				PC += ram[PC+1] + 2;
-			}
-			else PC += 2;
-			break;
+			break;	
+			
+		//Jumps
+		case 0x71: printf("JNO"); JMP1(!OF); break;
+		case 0x73: printf("JNC"); JMP1(!CF); break;
+		case 0x75: printf("JNZ"); JMP1(!ZF); break;
+		case 0x76: printf("JBE"); JMP1(ZF || CF); break; 
+		case 0x79: printf("JNS"); JMP1(!SF); break;
+		case 0x7B: printf("JNP"); JMP1(!PF); break;
+		
 		case 0x9E:
 			printf("SAHF");
 			FLAGS = (FLAGS & 0xF00) + AH;
@@ -248,7 +210,7 @@ int DoOP(unsigned char OP) {
 				FLAGS = (FLAGS & 0xFFFE) | ((AH>>(CL-1)) & 0x01);
 				AX = AL + ((AH>>CL)<<8);
 				ChkPF(AX);
-				ChkZF(AX);
+				CHKZF(AX);
 				if(CF^SF)
 				{
 					FLAGS |= 1<<11;
@@ -279,4 +241,25 @@ int DoOP(unsigned char OP) {
 	}
 	IP = PC & 0xFFFF;
 }
+//need to build functions for address modes(or possibly macros)
+//then functions or macros for operations
 
+
+int DoOP2(unsigned char OP)
+{
+	switch(OP)
+	{
+		
+		//FLAGS
+		case 0xFA: printf("%.2x CLI ", OP); FLAGS &= 0XDFF; break;
+		
+		
+		
+		default:
+		printf("Unknown OP Code: %.2X\n",OP);
+		exit(1);
+	}
+
+
+	PC++;
+}

@@ -13,3 +13,9 @@ int DoOP(unsigned char OP);
 #define SF (FLAGS>>7 & 0x1)
 #define ZF (FLAGS>>6 & 0x1)
 #define OF (FLAGS>>11 & 0x1)
+
+
+//macros
+#define JMP1(condition) if(condition) PC += ram[PC+1] + 2; else PC +=2; 
+#define CHKZF(arg) if (arg == 0) FLAGS |= 0x40; else FLAGS &= 0xFFBF;
+#define RDRAM(addr) RAM[CS]
