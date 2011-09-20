@@ -1,22 +1,19 @@
 #include "5150emu.h"
-#include "intel8086.h"
+#include "opcode.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+
 //tracer enable/disable
 #define TRACE
-int cycles;
-//need to use IP in order to be like actual Processor
-int PC;
-
-//registers
-unsigned short AX, BX, CX, DX;
-//Pointer, index
-unsigned short SP, BP, SI, DI; 
-unsigned short FLAGS;
-long IP;
-unsigned short CS, DS, SS, ES; 
-
+#ifdef TRACE
+#define DPRINTF()
+#else
+#define DPRINTF()
+#endif
+#define SET_PC(x) \
+	cpu->cs = x & 0xFFFF;\
+	cpu->ip = (x >> 4) & 0xFFFF;
 /* Ok, need to structure instructions better:
  * case 0xXX:
  *	InstructionMode(ram[PC+1]); //probably need R/W/M
@@ -26,23 +23,43 @@ unsigned short CS, DS, SS, ES;
  *
  *
  */
-void Init8086()
+int (*opcodes[0x100])(X86Cpu *);
+int undef_op(X86Cpu *cpu)
 {
-	AX=BX=CX=DX=SP=BP=SI=DI=IP=CS=DS=SS=ES=0;
-	FLAGS=0;
+
+	fprintf(stderr,"Undefined opcode %x @ %x",cpu->ram[PC],PC);
+	return 1;
+
+
+}
+void init_8086(X86Cpu *cpu)
+{
+	int i;
+	for(i = 0; i < 0x100; i++)
+	{
+		opcodes[i] = undef_op;
+	}
+//	opcodes[0xEA] = jmpf;
 	
+	memset(cpu, 0, sizeof(X86Cpu));
+	cpu->ip = 0xFFF0;
+	cpu->cs = 0xF000;
+	cpu->sp = 0xFFFE;
+	cpu->ram = malloc(RAM_SIZE);
+	memset(cpu->ram, 0, RAM_SIZE);
 }
 
-void PrintRegisters()
+void print_registers(X86Cpu *cpu)
 {
-	printf(" AX: %.4X, BX: %.4X, CX: %.4X, DX: %.4X FL: %.4X", AX, BX, CX, DX,FLAGS);
+	printf(" PC: 0x%x AX: %.4X, BX: %.4X, CX: %.4X, DX: %.4X FL: %.4X\n",
+		 PC,cpu->ax.w, cpu->bx.w, cpu->cx.w, cpu->dx.w,cpu->flags);
 }
 
 
-void PrintFlags()
+void print_flags(X86Cpu *cpu)
 {
     printf("FLAGS:");
-
+	uint16_t FLAGS = cpu->flags;
     if (FLAGS & 0x800)printf("O");
     else printf("o");
     if (FLAGS & 0x400)printf("D");
@@ -63,32 +80,6 @@ void PrintFlags()
     else printf("c");
 }
 
-//need flag checkers
-void ChkPF(unsigned short data)
-{
-
-	 data ^= (data >> 1);
-	 data ^= (data >> 2);
-	 data ^= (data >> 4);
-	 data ^= (data >> 8);
-	 data ^= (data >> 16);
-	if (data & 0x1)
-	{
-		FLAGS &= 0xFFFB;
-	}
-	else FLAGS |= 0x4;
-	
-}
-
-void ChkZF(unsigned short data)
-{
-	if (data == 0)
-	{
-		FLAGS |= 0x40;
-	}
-	else FLAGS &= 0xFFBF;
-}
-
 //from GRP2, SHL w/ consant 1
 void SHL1(unsigned char tmp)
 {
@@ -97,13 +88,13 @@ void SHL1(unsigned char tmp)
 	{
 		case 0:
 			printf("SHL AL,1");
-			FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
-			AX = (AH<<8) + (AL<<1);
-			ChkPF(AX);
-			CHKZF(AX);
-			if(CF^SF)
+		//	FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
+		//	AX = (AH<<8) + (AL<<1);
+		//	ChkPF(AX);
+		//	CHKZF(AX);
+		//	if(CF^SF)
 			{
-				FLAGS |= 1<<11;
+		//		FLAGS |= 1<<11;
 			}	
 			break;
 		default:
@@ -116,150 +107,95 @@ void SHL1(unsigned char tmp)
 
 
 
-int DoOP(unsigned char OP) {
-
-	//cycles = 0;
-	int tmp;
-	printf("$%X:\t", PCnew);
-	
-	switch (OP)
+int do_op(X86Cpu *cpu) 
+{
+	uint8_t op = cpu->ram[PC];
+	switch (cpu->ram[PC])//cpu->ram[0xFFFF0])
 	{
-		case 0x32:
-			printf("XOR");
+//	case 0x32:
+//			printf("XOR");
 			//lets trial some mod reg r/w shit
-			if(!(ram[PC+1]&0xC0)) exit(1);
-			switch (ram[PC+1]&0x3F)
+		//	if(!(ram[PC+1]&0xC0)) exit(1);
+		//	switch (ram[PC+1]&0x3F)
 			{
-				case 0x24:
-					printf(" AH,AH");
-					AX = ((AX&0xFF00)^(AX&0xFF00)) + AL;
-					CHKZF(AX);
-					ChkPF(AX);
+		//		case 0x24:
+		//			printf(" AH,AH");
+	//				AX = ((AX&0xFF00)^(AX&0xFF00)) + AL;
+	//				CHKZF(AX);
+	//				ChkPF(AX);
 					//check if neg
-					if(AX&0x8000) FLAGS |= 0x80;
-					else FLAGS &= 0xF7F;
+	//				if(AX&0x8000) FLAGS |= 0x80;
+	//				else FLAGS &= 0xF7F;
 					//zeros Z and O
-					FLAGS &= 0x7FE;
-					break;
-				default:
-					break;
+	//				FLAGS &= 0x7FE;
+		//			break;
+		//		default:
+		//			break;
 					
 			}
-			printf("2nd: %.2X",ram[PC+1]);
-			PC += 2;
-			break;	
+		//	printf("2nd: %.2X",ram[PC+1]);
+		//	PC += 2;
+	//		break;	
 			
 		//Jumps
-		case 0x71: printf("JNO"); JMP1(!OF); break;
-		case 0x73: printf("JNC"); JMP1(!CF); break;
-		case 0x75: printf("JNZ"); JMP1(!ZF); break;
-		case 0x76: printf("JBE"); JMP1(ZF || CF); break; 
-		case 0x79: printf("JNS"); JMP1(!SF); break;
-		case 0x7B: printf("JNP"); JMP1(!PF); break;
-		
-		case 0x9E:
-			printf("SAHF");
-			FLAGS = (FLAGS & 0xF00) + AH;
-			if(CF^SF)
-			{
-				FLAGS |= 1<<11;
-			}
-			PC++;
-			break;
-		case 0x9F:
-			printf("LAHF");
-			AX = (((FLAGS & 0xFF)+0x2)<<8) + (AX & 0xFF);
-			PC++;
-			break;
-		case 0xB0:
-			printf("MOV AL,%.2X",ram[PC+1]);
-			AX = ram[PC+1] + (AX & 0xFF00);
-			PC += 2;	
-			break;
-		case 0xB1:
-			printf("MOV CL,%.2X",ram[PC+1]);
-			CX = ram[PC+1] + (CX & 0xFF00);
-			PC += 2;
-			break;
-		case 0xB4:
-			printf("MOV AH,%.2X", ram[PC+1]);
-			AX = ram[PC+1] << 8;
-			PC += 2;
-			break;
-		case 0xD0:
+	case 0x70 ... 0x7F:	jcc(cpu);	break;
+			
+	case 0x9E:			sahf(cpu);	break;	
+	case 0x9F: 			lahf(cpu); 	break;
+
+
+	case 0xB0 ... 0xBF:	mov(cpu);	break;
+
+	//	case 0xD0:
 			//all have 1 as constant
 			//middle 3 bits determine instruction
-			tmp = (ram[PC+1]&0x38)>>3;
-			if (!(ram[PC+1]&0xC0)) exit(1);
-			switch (tmp)
+	//		tmp = (ram[PC+1]&0x38)>>3;
+	//		if (!(ram[PC+1]&0xC0)) exit(1);
+			//switch (tmp)
 			{
-				case 4:
-				SHL1(ram[PC+1]);
-				break;
-				default:
-				printf("Unimplemented  GRP2 OP code\n");
-				exit(1);
+			//	case 4:
+		//		SHL1(ram[PC+1]);
+			//	break;
+			//	default:
+			//	printf("Unimplemented  GRP2 OP code\n");
+			//	exit(1);
 			}
-			PC += 2;
-			break;
-		case 0xD2:
+	//		PC += 2;
+	//		break;
+	//	case 0xD2:
 			//fix this to match 0xD0
-			printf("SHR AH,CL");
-			if(ram[PC+1] == 0xEC)
-			{
-				FLAGS = (FLAGS & 0xFFFE) | ((AH>>(CL-1)) & 0x01);
-				AX = AL + ((AH>>CL)<<8);
-				ChkPF(AX);
-				CHKZF(AX);
-				if(CF^SF)
-				{
-					FLAGS |= 1<<11;
-				}	
-				PC +=2;
-			}else exit(1);
-			break;
+	//		printf("SHR AH,CL");
+		//	if(ram[PC+1] == 0xEC)
+	//		{
+	//			FLAGS = (FLAGS & 0xFFFE) | ((AH>>(CL-1)) & 0x01);
+	//			AX = AL + ((AH>>CL)<<8);
+	//			ChkPF(AX);
+	//			CHKZF(AX);
+	//			if(CF^SF)
+	//			{
+	//				FLAGS |= 1<<11;
+	//			}	
+	//			PC +=2;
+		//	}else exit(1);
+	//		break;
 		case 0xEA:
-			CS=(ram[PC+4]<<8)+ram[PC+3];
-			IP=(ram[PC+2]<<8)+ram[PC+1];
-			PC=PCnew;
-			printf("JMP Direct to $0x%.6X", PCnew );
-
-			//PC=ram[PC+1]+(ram[PC+2]<<8)+(ram[PC+3]<<16)+(ram[PC+4]<<12);
-			printf("\nCS:%.4X IP:%.4X\n",CS,IP);
+			jmpf(cpu);
 			break;
 		//Flags
 		case 0xFA:
-			printf("%.2x CLI ", OP);
-			FLAGS &= 0xDFF;
-			PC++;
+			printf("%.2x CLI ",op);
+			clear_flag(cpu, FLAGS_INT);
+			cpu->ip++;
 			break;
 		default:
-			printf("Unknown OP Code: %.2X\n", OP);
-			exit (1);
+			undef_op(cpu);
+			cpu->running = 0;
 			
 
 	}
-	IP = PC & 0xFFFF;
+	return 0;
+	//IP = PC & 0xFFFF;
 }
 //need to build functions for address modes(or possibly macros)
 //then functions or macros for operations
 
-
-int DoOP2(unsigned char OP)
-{
-	switch(OP)
-	{
-		
-		//FLAGS
-		case 0xFA: printf("%.2x CLI ", OP); FLAGS &= 0XDFF; break;
-		
-		
-		
-		default:
-		printf("Unknown OP Code: %.2X\n",OP);
-		exit(1);
-	}
-
-
-	PC++;
-}
