@@ -6,7 +6,7 @@ bpc: 5150emu.o intel8086.o
 5150emu.o: 5150emu.c
 	gcc -c 5150emu.c
 	
-intel8086.o: intel8086.c
+intel8086.o: intel8086.c opcode.h
 	gcc -c intel8086.c
 	
 clean:
