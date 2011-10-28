@@ -44,13 +44,13 @@ static inline void chk_parity(X86Cpu *cpu, unsigned short data)
 	if (data & 0x1)
 		clear_flag(cpu, FLAGS_PF);
 	else 
-		set_flag(cpu,FLAGS_PF);
+		set_flag(cpu, FLAGS_PF);
 	
 }
 static inline void chk_zero(X86Cpu *cpu, unsigned short data)
 {
 	if (data == 0)
-		set_flag(cpu,FLAGS_ZF);
+		set_flag(cpu, FLAGS_ZF);
 	else 
 		clear_flag(cpu, FLAGS_ZF);
 	

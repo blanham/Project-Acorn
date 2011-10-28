@@ -86,7 +86,7 @@ void SHL1(unsigned char tmp)
 
 	switch (tmp&0x7)
 	{
-		case 0:
+		//case 0:
 			printf("SHL AL,1");
 		//	FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
 		//	AX = (AH<<8) + (AL<<1);
@@ -96,7 +96,7 @@ void SHL1(unsigned char tmp)
 			{
 		//		FLAGS |= 1<<11;
 			}	
-			break;
+		//	break;
 		default:
 			printf("Missing SHL1 Arg!\n");
 			exit(1);

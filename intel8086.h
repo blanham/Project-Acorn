@@ -65,4 +65,7 @@ int do_op(X86Cpu *cpu);
 #define CHKZF(arg) if (arg == 0) FLAGS |= 0x40; else FLAGS &= 0xFFBF;
 #define RDRAM(addr) RAM[CS]
 #endif
+
+
+
 #endif
