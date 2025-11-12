@@ -596,7 +596,6 @@ int do_op(X86Cpu *cpu)
 
 		/* CLI - Clear interrupt flag (0xFA) */
 		case 0xFA:
-			printf("%.2X CLI ", opcode);
 			clear_flag(cpu, FLAGS_INT);
 			cpu->ip++;
 			break;
