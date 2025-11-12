@@ -8,7 +8,7 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 
 ### Phase 1: Core CPU Implementation (Current Phase)
 
-**Status:** In Progress (≈75% complete)
+**Status:** In Progress (≈85% complete)
 
 **Goals:**
 - Complete Intel 8086 instruction set implementation
