@@ -359,6 +359,11 @@ int do_op(X86Cpu *cpu)
 			lea(cpu);
 			break;
 
+		/* POP r/m (0x8F) */
+		case 0x8F:
+			pop_rm(cpu);
+			break;
+
 		/* XCHG AX with register / NOP (0x90-0x97) */
 		case 0x90 ... 0x97:
 			xchg_ax(cpu);

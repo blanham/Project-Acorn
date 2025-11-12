@@ -1856,6 +1856,25 @@ static inline void mov(X86Cpu *cpu)
 	}
 }
 
+/* POP r/m (0x8F) - Pop word from stack to memory/register */
+static inline void pop_rm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	/* Pop value from stack */
+	uint16_t value = pop_word(cpu);
+
+	/* Write to memory or register */
+	if (modrm.is_memory) {
+		cpu_write_word(cpu, modrm.ea, value);
+	} else {
+		*get_reg16_ptr(cpu, modrm.rm) = value;
+	}
+
+	cpu->ip += 1 + modrm.length;
+}
+
 /* XCHG - Exchange register/memory with register (0x86-0x87) */
 static inline void xchg_modrm(X86Cpu *cpu)
 {
