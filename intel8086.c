@@ -13,41 +13,35 @@
 
 uint8_t cpu_read_byte(X86Cpu *cpu, uint32_t addr)
 {
-	if (addr >= RAM_SIZE) {
-		fprintf(stderr, "WARNING: Memory read out of bounds: 0x%08X\n", addr);
-		return 0xFF;
-	}
+	/* 8086 has 20-bit address bus, addresses wrap at 1MB */
+	addr &= 0xFFFFF;
 	return cpu->ram[addr];
 }
 
 uint16_t cpu_read_word(X86Cpu *cpu, uint32_t addr)
 {
-	if (addr + 1 >= RAM_SIZE) {
-		fprintf(stderr, "WARNING: Memory read out of bounds: 0x%08X\n", addr);
-		return 0xFFFF;
-	}
-	/* x86 is little-endian */
-	return cpu->ram[addr] | (cpu->ram[addr + 1] << 8);
+	/* 8086 has 20-bit address bus, addresses wrap at 1MB */
+	addr &= 0xFFFFF;
+	/* Handle word read that crosses 1MB boundary */
+	uint8_t low = cpu->ram[addr];
+	uint8_t high = cpu->ram[(addr + 1) & 0xFFFFF];
+	return low | (high << 8);
 }
 
 void cpu_write_byte(X86Cpu *cpu, uint32_t addr, uint8_t value)
 {
-	if (addr >= RAM_SIZE) {
-		fprintf(stderr, "WARNING: Memory write out of bounds: 0x%08X\n", addr);
-		return;
-	}
+	/* 8086 has 20-bit address bus, addresses wrap at 1MB */
+	addr &= 0xFFFFF;
 	cpu->ram[addr] = value;
 }
 
 void cpu_write_word(X86Cpu *cpu, uint32_t addr, uint16_t value)
 {
-	if (addr + 1 >= RAM_SIZE) {
-		fprintf(stderr, "WARNING: Memory write out of bounds: 0x%08X\n", addr);
-		return;
-	}
-	/* x86 is little-endian */
+	/* 8086 has 20-bit address bus, addresses wrap at 1MB */
+	addr &= 0xFFFFF;
+	/* Handle word write that crosses 1MB boundary */
 	cpu->ram[addr] = value & 0xFF;
-	cpu->ram[addr + 1] = (value >> 8) & 0xFF;
+	cpu->ram[(addr + 1) & 0xFFFFF] = (value >> 8) & 0xFF;
 }
 
 /* CPU initialization */
@@ -236,6 +230,13 @@ int do_op(X86Cpu *cpu)
 			and_op(cpu);
 			break;
 
+		/* ES: segment override (0x26) */
+		case 0x26:
+			/* Segment override prefix - execute next instruction */
+			cpu->ip++;
+			do_op(cpu);
+			return 0;
+
 		/* DAA - Decimal Adjust after Addition (0x27) */
 		case 0x27:
 			daa(cpu);
@@ -245,6 +246,13 @@ int do_op(X86Cpu *cpu)
 		case 0x28 ... 0x2D:
 			sub_op(cpu);
 			break;
+
+		/* CS: segment override (0x2E) */
+		case 0x2E:
+			/* Segment override prefix - execute next instruction */
+			cpu->ip++;
+			do_op(cpu);
+			return 0;
 
 		/* DAS - Decimal Adjust after Subtraction (0x2F) */
 		case 0x2F:
@@ -256,6 +264,13 @@ int do_op(X86Cpu *cpu)
 			xor_op(cpu);
 			break;
 
+		/* SS: segment override (0x36) */
+		case 0x36:
+			/* Segment override prefix - execute next instruction */
+			cpu->ip++;
+			do_op(cpu);
+			return 0;
+
 		/* AAA - ASCII Adjust after Addition (0x37) */
 		case 0x37:
 			aaa(cpu);
@@ -265,6 +280,13 @@ int do_op(X86Cpu *cpu)
 		case 0x38 ... 0x3D:
 			cmp_op(cpu);
 			break;
+
+		/* DS: segment override (0x3E) */
+		case 0x3E:
+			/* Segment override prefix - execute next instruction */
+			cpu->ip++;
+			do_op(cpu);
+			return 0;
 
 		/* AAS - ASCII Adjust after Subtraction (0x3F) */
 		case 0x3F:

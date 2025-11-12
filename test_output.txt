@@ -1,0 +1,251 @@
+make: sdl2-config: No such file or directory
+gcc -Wall -Wextra -Werror -std=c11 -O2  -c json_test_runner.c
+make: sdl2-config: No such file or directory
+gcc -Wall -Wextra -Werror -std=c11 -O2  -c intel8086.c
+make: sdl2-config: No such file or directory
+gcc -Wall -Wextra -Werror -std=c11 -O2  -Wno-error -c cJSON.c
+gcc -o json_test_runner json_test_runner.o intel8086.o cJSON.o -lz
+./json_test_runner
+=================================================
+  Project Acorn - Comprehensive CPU Test Suite
+  SingleStepTests/8086 Test Runner
+=================================================
+
+  FAIL: add byte [ss:bx+di-6FDBh], dh
+  FAIL: add byte [ds:bp+di-12FDh], bh
+  FAIL: add byte [cs:bx+17h], bl
+  FAIL: add byte [ss:6D68h], cl
+  FAIL: add byte [ss:bx+di], bh
+  FAIL: add byte [cs:bx], ch
+  FAIL: add byte [cs:si-71h], cl
+  FAIL: add byte [es:si], ch
+  FAIL: add byte [cs:bx+si-516Fh], bl
+  FAIL: add byte [cs:bp+si+4A4Ah], dl
+✗ tests/8086_tests/v1/00.json.gz: 1469/2000 tests passed, 531 FAILED
+  FAIL: add word [ds:si-25h], dx
+  FAIL: add word [ss:bx+si+Ah], bx
+  FAIL: add word [ss:bp+di], dx
+  FAIL: add word [es:bp+di+37h], bx
+  FAIL: add word [es:bp+si+4FA6h], di
+  FAIL: add word [es:bx+5Fh], si
+  FAIL: add word [ss:bp+di], di
+  FAIL: add word [cs:bp+7Bh], dx
+  FAIL: add sp, di
+  FAIL: add sp, di
+✗ tests/8086_tests/v1/01.json.gz: 815/2000 tests passed, 1185 FAILED
+  FAIL: add al, byte [ds:bp+di+5h]
+  FAIL: add ch, byte [ss:bx-6FC0h]
+  FAIL: add bh, byte [ds:bp+di-4916h]
+  FAIL: add cl, byte [es:bx+si]
+  FAIL: add bh, byte [ss:si]
+  FAIL: add ch, byte [es:bx+si-41h]
+  FAIL: add ch, byte [cs:bx+si-391Bh]
+  FAIL: add ch, byte [ss:bx+di+5Ah]
+  FAIL: add cl, byte [cs:bx+si+57h]
+  FAIL: add ch, byte [es:bx]
+✗ tests/8086_tests/v1/02.json.gz: 1442/2000 tests passed, 558 FAILED
+  FAIL: add di, word [ss:bp+2840h]
+  FAIL: add bx, word [cs:si-Fh]
+  FAIL: add di, word [ss:bp+56h]
+  FAIL: add dx, word [ss:bp+di]
+  FAIL: add cx, word [ss:si-381Fh]
+  FAIL: add cx, word [ds:bx+F55h]
+  FAIL: add cx, sp
+  FAIL: add si, word [ds:bp+1CD3h]
+  FAIL: add di, word [es:bx+si]
+  FAIL: add cx, word [ds:si]
+✗ tests/8086_tests/v1/03.json.gz: 789/2000 tests passed, 1211 FAILED
+✓ tests/8086_tests/v1/04.json.gz: 2000/2000 tests passed
+✓ tests/8086_tests/v1/05.json.gz: 2000/2000 tests passed
+  FAIL: adc byte [ds:bx+di+BEBh], bl
+  FAIL: adc byte [es:si+5Eh], bh
+  FAIL: adc bl, ah
+  FAIL: adc byte [ds:bp+di+1FCEh], ah
+  FAIL: adc dh, bl
+  FAIL: adc byte [ds:di], ch
+  FAIL: adc bl, dl
+  FAIL: adc ah, al
+  FAIL: adc byte [ds:di], cl
+  FAIL: adc byte [ss:bp+si-13DBh], dl
+✗ tests/8086_tests/v1/10.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: adc word [ss:si+5119h], cx
+  FAIL: adc di, di
+  FAIL: adc word [ds:bx+si-73A3h], bp
+  FAIL: adc word [es:bp+si-Bh], bp
+  FAIL: adc cx, sp
+  FAIL: adc word [cs:bp+si], di
+  FAIL: adc word [ss:bp+si+4B37h], sp
+  FAIL: adc sp, di
+  FAIL: adc word [cs:bx+55h], ax
+  FAIL: adc bp, cx
+✗ tests/8086_tests/v1/11.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: adc bh, bl
+  FAIL: adc ah, byte [ds:bp+si+4EB7h]
+  FAIL: adc dh, byte [ds:si-30h]
+  FAIL: adc bh, byte [cs:di+113Dh]
+  FAIL: adc cl, byte [ss:bx+si+41h]
+  FAIL: adc al, dl
+  FAIL: adc bl, byte [ss:bp+di-6Ch]
+  FAIL: adc ah, byte [ss:bx+di-4EBFh]
+  FAIL: adc cl, byte [es:bx+si]
+  FAIL: adc ah, byte [ss:bp+di-1Dh]
+✗ tests/8086_tests/v1/12.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: adc di, word [ds:bp+di-7Fh]
+  FAIL: adc ax, word [cs:bx+3DB4h]
+  FAIL: adc si, cx
+  FAIL: adc ax, word [ds:bx+si+5E37h]
+  FAIL: adc si, word [ss:bx+si+5A8Ah]
+  FAIL: adc sp, word [cs:bx+si]
+  FAIL: adc si, word [ds:bx-72h]
+  FAIL: adc sp, word [ds:bp+si+37h]
+  FAIL: adc dx, word [ds:2BB0h]
+  FAIL: adc dx, word [ss:bx+si]
+✗ tests/8086_tests/v1/13.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: adc al, 4Fh
+  FAIL: adc al, EFh
+  FAIL: adc al, FFh
+  FAIL: adc al, 4Fh
+  FAIL: adc al, DFh
+  FAIL: adc al, EFh
+  FAIL: adc al, DFh
+  FAIL: adc al, 1Fh
+  FAIL: adc al, BFh
+  FAIL: adc al, 5Fh
+✗ tests/8086_tests/v1/14.json.gz: 1949/2000 tests passed, 51 FAILED
+  FAIL: adc ax, 298Fh
+  FAIL: adc ax, 7C9Fh
+  FAIL: adc ax, 5F3Fh
+  FAIL: adc ax, FCBFh
+  FAIL: adc ax, D56Fh
+  FAIL: adc ax, 713Fh
+  FAIL: adc ax, 9FAFh
+  FAIL: adc ax, BA0Fh
+  FAIL: adc ax, 1A4Fh
+  FAIL: adc ax, CD2Fh
+✗ tests/8086_tests/v1/15.json.gz: 1922/2000 tests passed, 78 FAILED
+  FAIL: sbb byte [ds:bp+di+5123h], dh
+  FAIL: sbb ch, dh
+  FAIL: sbb ch, bh
+  FAIL: sbb byte [ds:bx+di+54h], bl
+  FAIL: sbb byte [es:si], bl
+  FAIL: sbb byte [ds:68ECh], ch
+  FAIL: sbb bl, dl
+  FAIL: sbb byte [ss:bp+si], ch
+  FAIL: sbb byte [ds:bx+si], bl
+  FAIL: sbb byte [ds:di+Ah], al
+✗ tests/8086_tests/v1/18.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: sbb word [ds:di], sp
+  FAIL: sbb sp, bp
+  FAIL: sbb ax, sp
+  FAIL: sbb word [ds:bx+si], sp
+  FAIL: sbb ax, ax
+  FAIL: sbb word [es:bx+di-41F6h], dx
+  FAIL: sbb word [ss:bp+2Bh], sp
+  FAIL: sbb word [ds:si+0h], si
+  FAIL: sbb bx, sp
+  FAIL: sbb word [ds:si], si
+✗ tests/8086_tests/v1/19.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: sbb bl, byte [ds:bx+si-63h]
+  FAIL: sbb ch, ah
+  FAIL: sbb bl, byte [ss:bx+si-Fh]
+  FAIL: sbb ch, byte [ds:bx-E72h]
+  FAIL: sbb bh, byte [cs:si]
+  FAIL: sbb bl, byte [cs:bx+si]
+  FAIL: sbb dh, byte [cs:di-5C7Bh]
+  FAIL: sbb al, byte [es:bx+si]
+  FAIL: sbb bh, bh
+  FAIL: sbb dl, byte [ds:bx]
+✗ tests/8086_tests/v1/1A.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: sbb si, word [ss:si-796Bh]
+  FAIL: sbb cx, word [ds:314Dh]
+  FAIL: sbb si, cx
+  FAIL: sbb cx, word [ss:bx+di]
+  FAIL: sbb di, word [cs:bx+di+15h]
+  FAIL: sbb si, word [ss:bx+di+1F0Bh]
+  FAIL: sbb ax, di
+  FAIL: sbb si, word [ss:bx+di-6F78h]
+  FAIL: sbb dx, word [ss:bp+si]
+  FAIL: sbb bp, bp
+✗ tests/8086_tests/v1/1B.json.gz: 0/2000 tests passed, 2000 FAILED
+  FAIL: sbb al, Fh
+  FAIL: sbb al, FFh
+  FAIL: sbb al, 7Fh
+  FAIL: sbb al, 9Fh
+  FAIL: sbb al, Fh
+  FAIL: sbb al, 7Fh
+  FAIL: sbb al, Fh
+  FAIL: sbb al, 1Fh
+  FAIL: sbb al, 6Fh
+  FAIL: sbb al, DFh
+✗ tests/8086_tests/v1/1C.json.gz: 1936/2000 tests passed, 64 FAILED
+  FAIL: sbb ax, 889Fh
+  FAIL: sbb ax, 8E2Fh
+  FAIL: sbb ax, 8F3Fh
+  FAIL: sbb ax, F3AFh
+  FAIL: sbb ax, DC4Fh
+  FAIL: sbb ax, F47Fh
+  FAIL: sbb ax, 207Fh
+  FAIL: sbb ax, DDFFh
+  FAIL: sbb ax, FFBFh
+  FAIL: sbb ax, 418Fh
+✗ tests/8086_tests/v1/1D.json.gz: 1938/2000 tests passed, 62 FAILED
+  FAIL: sub byte [cs:bx-75B1h], ch
+  FAIL: sub byte [ss:di-57h], al
+  FAIL: sub byte [ss:bx+297Dh], bl
+  FAIL: sub byte [ds:bp+si-59h], ah
+  FAIL: sub byte [es:bp-51B9h], al
+  FAIL: sub byte [cs:bp+si+0h], dh
+  FAIL: sub byte [cs:bp+si-49h], al
+  FAIL: sub byte [es:bp+di+5F0h], ah
+  FAIL: sub byte [es:bp+si+9DEh], dh
+  FAIL: sub byte [cs:si], al
+✗ tests/8086_tests/v1/28.json.gz: 1447/2000 tests passed, 553 FAILED
+  FAIL: sub word [es:bx], cx
+  FAIL: sub word [ss:bx+di+26CAh], cx
+  FAIL: sub word [es:bp+si-22B3h], bp
+  FAIL: sub word [es:bp-14h], bx
+  FAIL: sub word [cs:bx+di-2Ch], di
+  FAIL: sub word [es:di], sp
+  FAIL: sub word [es:bx+18h], bp
+  FAIL: sub word [cs:si-72h], si
+  FAIL: sub word [ss:bx], dx
+  FAIL: sub word [ds:bp+di], cx
+✗ tests/8086_tests/v1/29.json.gz: 1517/2000 tests passed, 483 FAILED
+  FAIL: sub bh, byte [ss:di]
+  FAIL: sub bh, byte [ds:bp-15h]
+  FAIL: sub ah, byte [es:bx+di+30h]
+  FAIL: sub ch, byte [cs:bp+si-16h]
+  FAIL: sub dh, byte [es:di]
+  FAIL: sub ch, byte [ds:bp+si-52AEh]
+  FAIL: sub al, byte [es:bp+78h]
+  FAIL: sub al, byte [cs:bp-53E5h]
+  FAIL: sub ah, byte [ds:bp+2602h]
+  FAIL: sub bh, byte [es:bx+di+3Dh]
+✗ tests/8086_tests/v1/2A.json.gz: 1433/2000 tests passed, 567 FAILED
+  FAIL: sub bp, word [ds:bp+di-6728h]
+  FAIL: sub ax, word [cs:bx+485Ch]
+  FAIL: sub di, word [ss:di-483Ch]
+  FAIL: sub bp, word [es:bx+di-2Ah]
+  FAIL: sub si, word [es:bp+si-64h]
+  FAIL: sub sp, word [es:bx-41A2h]
+  FAIL: sub bp, word [es:bp+4585h]
+  FAIL: sub sp, word [ds:bp-2Eh]
+  FAIL: sub ax, word [ss:si]
+  FAIL: sub di, word [cs:si-6C81h]
+✗ tests/8086_tests/v1/2B.json.gz: 1432/2000 tests passed, 568 FAILED
+✓ tests/8086_tests/v1/2C.json.gz: 2000/2000 tests passed
+✓ tests/8086_tests/v1/2D.json.gz: 2000/2000 tests passed
+  FAIL: cmp byte [cs:bx+si], al
+  FAIL: cmp byte [es:bx+si-7BF0h], cl
+  FAIL: cmp byte [es:bp+si], al
+  FAIL: cmp byte [cs:bp+di], ah
+  FAIL: cmp byte [ds:bp+si], ch
+  FAIL: cmp byte [cs:bx+di-6884h], bh
+  FAIL: cmp byte [ss:bx+64F1h], bl
+  FAIL: cmp byte [es:si-65h], al
+  FAIL: cmp byte [ss:bx+si], dl
+  FAIL: cmp byte [cs:bx-2Bh], ah
+✗ tests/8086_tests/v1/38.json.gz: 1499/2000 tests passed, 501 FAILED
+  FAIL: cmp word [es:bx], bx
+  FAIL: cmp word [ss:si-64h], si
+  FAIL: cmp wo
