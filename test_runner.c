@@ -18,199 +18,520 @@ typedef struct {
 	int skipped;
 } TestResults;
 
-/* Function to set CPU state from test data */
-void set_cpu_state(X86Cpu *cpu, uint16_t ax, uint16_t bx, uint16_t cx, uint16_t dx,
-		uint16_t cs, uint16_t ss, uint16_t ds, uint16_t es,
-		uint16_t sp, uint16_t bp, uint16_t si, uint16_t di,
-		uint16_t ip, uint16_t flags)
-{
-	cpu->ax.w = ax;
-	cpu->bx.w = bx;
-	cpu->cx.w = cx;
-	cpu->dx.w = dx;
-	cpu->cs = cs;
-	cpu->ss = ss;
-	cpu->ds = ds;
-	cpu->es = es;
-	cpu->sp = sp;
-	cpu->bp = bp;
-	cpu->si = si;
-	cpu->di = di;
-	cpu->ip = ip;
-	cpu->flags = flags;
-}
+/* Macro for running a single test */
+#define RUN_TEST(name, condition) do { \
+	results->total++; \
+	if (condition) { \
+		printf("  ✓ %s\n", name); \
+		results->passed++; \
+	} else { \
+		printf("  ✗ %s\n", name); \
+		results->failed++; \
+	} \
+} while(0)
 
-/* Function to check if CPU state matches expected values */
-bool check_cpu_state(X86Cpu *cpu, const char *test_name,
-		uint16_t exp_ax, uint16_t exp_bx, uint16_t exp_cx, uint16_t exp_dx,
-		uint16_t exp_cs, uint16_t exp_ss, uint16_t exp_ds, uint16_t exp_es,
-		uint16_t exp_sp, uint16_t exp_bp, uint16_t exp_si, uint16_t exp_di,
-		uint16_t exp_ip, uint16_t exp_flags,
-		bool check_all)
-{
-	(void)test_name;  /* Reserved for future use */
-	bool passed = true;
-
-	/* When check_all is false, only check registers that changed */
-	if (check_all || exp_ax != cpu->ax.w) {
-		if (cpu->ax.w != exp_ax) {
-			printf("  FAIL: AX = 0x%04X (expected 0x%04X)\n",
-				cpu->ax.w, exp_ax);
-			passed = false;
-		}
-	}
-
-	if (check_all || exp_bx != cpu->bx.w) {
-		if (cpu->bx.w != exp_bx) {
-			printf("  FAIL: BX = 0x%04X (expected 0x%04X)\n",
-				cpu->bx.w, exp_bx);
-			passed = false;
-		}
-	}
-
-	if (check_all || exp_cx != cpu->cx.w) {
-		if (cpu->cx.w != exp_cx) {
-			printf("  FAIL: CX = 0x%04X (expected 0x%04X)\n",
-				cpu->cx.w, exp_cx);
-			passed = false;
-		}
-	}
-
-	if (check_all || exp_dx != cpu->dx.w) {
-		if (cpu->dx.w != exp_dx) {
-			printf("  FAIL: DX = 0x%04X (expected 0x%04X)\n",
-				cpu->dx.w, exp_dx);
-			passed = false;
-		}
-	}
-
-	if (check_all || exp_ip != cpu->ip) {
-		if (cpu->ip != exp_ip) {
-			printf("  FAIL: IP = 0x%04X (expected 0x%04X)\n",
-				cpu->ip, exp_ip);
-			passed = false;
-		}
-	}
-
-	if (check_all || exp_flags != cpu->flags) {
-		if (cpu->flags != exp_flags) {
-			printf("  FAIL: FLAGS = 0x%04X (expected 0x%04X)\n",
-				cpu->flags, exp_flags);
-			passed = false;
-		}
-	}
-
-	/* Check segment registers if check_all is true */
-	if (check_all) {
-		if (cpu->cs != exp_cs) {
-			printf("  FAIL: CS = 0x%04X (expected 0x%04X)\n",
-				cpu->cs, exp_cs);
-			passed = false;
-		}
-		if (cpu->ss != exp_ss) {
-			printf("  FAIL: SS = 0x%04X (expected 0x%04X)\n",
-				cpu->ss, exp_ss);
-			passed = false;
-		}
-		if (cpu->ds != exp_ds) {
-			printf("  FAIL: DS = 0x%04X (expected 0x%04X)\n",
-				cpu->ds, exp_ds);
-			passed = false;
-		}
-		if (cpu->es != exp_es) {
-			printf("  FAIL: ES = 0x%04X (expected 0x%04X)\n",
-				cpu->es, exp_es);
-			passed = false;
-		}
-		if (cpu->sp != exp_sp) {
-			printf("  FAIL: SP = 0x%04X (expected 0x%04X)\n",
-				cpu->sp, exp_sp);
-			passed = false;
-		}
-		if (cpu->bp != exp_bp) {
-			printf("  FAIL: BP = 0x%04X (expected 0x%04X)\n",
-				cpu->bp, exp_bp);
-			passed = false;
-		}
-		if (cpu->si != exp_si) {
-			printf("  FAIL: SI = 0x%04X (expected 0x%04X)\n",
-				cpu->si, exp_si);
-			passed = false;
-		}
-		if (cpu->di != exp_di) {
-			printf("  FAIL: DI = 0x%04X (expected 0x%04X)\n",
-				cpu->di, exp_di);
-			passed = false;
-		}
-	}
-
-	return passed;
-}
-
-/* Simple test for MOV AL, imm8 instruction (opcode 0xB0) */
-void test_mov_al_imm8(TestResults *results)
-{
-	X86Cpu *cpu = malloc(sizeof(X86Cpu));
-	printf("\n=== Testing MOV AL, imm8 (0xB0) ===\n");
-
-	/* Test 1: Simple MOV AL, 0x8A */
-	printf("Test 1: MOV AL, 0x8A\n");
-	init_8086(cpu);
-	set_cpu_state(cpu, 0xA9B1, 0, 0xFC22, 0xEC22,
-		0xEBB4, 0x39EB, 0x4C11, 0x7D4A,
-		0x456B, 0x9128, 0x7771, 0x6B96,
-		0x5F6C, 0xFC83);
-
-	/* Write instruction bytes at CS:IP */
+/* Helper to write instruction bytes */
+static void write_instr(X86Cpu *cpu, const uint8_t *bytes, size_t len) {
 	uint32_t pc = cpu_get_pc(cpu);
-	cpu_write_byte(cpu, pc, 0xB0);  /* MOV AL, imm8 */
-	cpu_write_byte(cpu, pc + 1, 0x8A);  /* immediate value */
-
-	/* Execute instruction */
-	do_op(cpu);
-
-	/* Check results - AL should be 0x8A, IP should advance by 2 */
-	if (check_cpu_state(cpu, "MOV AL, 0x8A",
-			0xA98A, 0, 0xFC22, 0xEC22,  /* AX changed to 0xA98A */
-			0xEBB4, 0x39EB, 0x4C11, 0x7D4A,
-			0x456B, 0x9128, 0x7771, 0x6B96,
-			0x5F6E, 0xFC83,  /* IP = 0x5F6C + 2 */
-			false)) {
-		printf("  PASSED\n");
-		results->passed++;
-	} else {
-		printf("  FAILED\n");
-		results->failed++;
+	for (size_t i = 0; i < len; i++) {
+		cpu_write_byte(cpu, pc + i, bytes[i]);
 	}
-	results->total++;
+}
 
-	/* Test 2: MOV AL, 0x00 (zero) */
-	printf("Test 2: MOV AL, 0x00\n");
+/* Test arithmetic instructions: ADD */
+void test_add(TestResults *results) {
+	printf("\n=== Testing ADD ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* ADD AL, imm8 */
 	init_8086(cpu);
-	set_cpu_state(cpu, 0xFFFF, 0, 0, 0,
-		0xF000, 0, 0, 0,
-		0xFFFE, 0, 0, 0,
-		0x0100, 0);
-
-	pc = cpu_get_pc(cpu);
-	cpu_write_byte(cpu, pc, 0xB0);
-	cpu_write_byte(cpu, pc + 1, 0x00);
-
+	cpu->ax.l = 0x10;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x04, 0x20}, 2); /* ADD AL, 0x20 */
 	do_op(cpu);
+	RUN_TEST("ADD AL, 0x20", cpu->ax.l == 0x30 && cpu->ip == 0x0102);
 
-	if (check_cpu_state(cpu, "MOV AL, 0x00",
-			0xFF00, 0, 0, 0,
-			0xF000, 0, 0, 0,
-			0xFFFE, 0, 0, 0,
-			0x0102, 0,
-			false)) {
-		printf("  PASSED\n");
-		results->passed++;
-	} else {
-		printf("  FAILED\n");
-		results->failed++;
-	}
-	results->total++;
+	/* ADD AX, imm16 */
+	init_8086(cpu);
+	cpu->ax.w = 0x1234;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x05, 0x66, 0x00}, 3); /* ADD AX, 0x0066 */
+	do_op(cpu);
+	RUN_TEST("ADD AX, 0x0066", cpu->ax.w == 0x129A && cpu->ip == 0x0103);
+
+	/* Test carry flag */
+	init_8086(cpu);
+	cpu->ax.l = 0xFF;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x04, 0x01}, 2); /* ADD AL, 1 */
+	do_op(cpu);
+	RUN_TEST("ADD sets carry", (cpu->flags & 0x001) && cpu->ax.l == 0x00);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test ADC (Add with Carry) */
+void test_adc(TestResults *results) {
+	printf("\n=== Testing ADC ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* ADC AL, imm8 without carry */
+	init_8086(cpu);
+	cpu->ax.l = 0x10;
+	cpu->flags = 0;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x14, 0x20}, 2); /* ADC AL, 0x20 */
+	do_op(cpu);
+	RUN_TEST("ADC AL, 0x20 (CF=0)", cpu->ax.l == 0x30);
+
+	/* ADC AL, imm8 with carry */
+	init_8086(cpu);
+	cpu->ax.l = 0x10;
+	cpu->flags = 0x001; /* Set carry */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x14, 0x20}, 2); /* ADC AL, 0x20 */
+	do_op(cpu);
+	RUN_TEST("ADC AL, 0x20 (CF=1)", cpu->ax.l == 0x31);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test SUB */
+void test_sub(TestResults *results) {
+	printf("\n=== Testing SUB ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* SUB AL, imm8 */
+	init_8086(cpu);
+	cpu->ax.l = 0x50;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x2C, 0x30}, 2); /* SUB AL, 0x30 */
+	do_op(cpu);
+	RUN_TEST("SUB AL, 0x30", cpu->ax.l == 0x20);
+
+	/* Test borrow (carry flag on underflow) */
+	init_8086(cpu);
+	cpu->ax.l = 0x10;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x2C, 0x20}, 2); /* SUB AL, 0x20 */
+	do_op(cpu);
+	RUN_TEST("SUB sets carry on borrow", (cpu->flags & 0x001) && cpu->ax.l == 0xF0);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test SBB (Subtract with Borrow) */
+void test_sbb(TestResults *results) {
+	printf("\n=== Testing SBB ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* SBB AL, imm8 without borrow */
+	init_8086(cpu);
+	cpu->ax.l = 0x50;
+	cpu->flags = 0;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x1C, 0x30}, 2); /* SBB AL, 0x30 */
+	do_op(cpu);
+	RUN_TEST("SBB AL, 0x30 (CF=0)", cpu->ax.l == 0x20);
+
+	/* SBB AL, imm8 with borrow */
+	init_8086(cpu);
+	cpu->ax.l = 0x50;
+	cpu->flags = 0x001; /* Set carry */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x1C, 0x30}, 2); /* SBB AL, 0x30 */
+	do_op(cpu);
+	RUN_TEST("SBB AL, 0x30 (CF=1)", cpu->ax.l == 0x1F);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test INC/DEC */
+void test_inc_dec(TestResults *results) {
+	printf("\n=== Testing INC/DEC ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* INC AX */
+	init_8086(cpu);
+	cpu->ax.w = 0x1234;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x40}, 1); /* INC AX */
+	do_op(cpu);
+	RUN_TEST("INC AX", cpu->ax.w == 0x1235);
+
+	/* DEC AX */
+	init_8086(cpu);
+	cpu->ax.w = 0x1234;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x48}, 1); /* DEC AX */
+	do_op(cpu);
+	RUN_TEST("DEC AX", cpu->ax.w == 0x1233);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test MUL */
+void test_mul(TestResults *results) {
+	printf("\n=== Testing MUL ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* MUL BL (byte) */
+	init_8086(cpu);
+	cpu->ax.l = 0x10;
+	cpu->bx.l = 0x20;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xF6, 0xE3}, 2); /* MUL BL */
+	do_op(cpu);
+	RUN_TEST("MUL BL (8-bit)", cpu->ax.w == 0x0200);
+
+	/* MUL BX (word) */
+	init_8086(cpu);
+	cpu->ax.w = 0x0100;
+	cpu->bx.w = 0x0200;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xF7, 0xE3}, 2); /* MUL BX */
+	do_op(cpu);
+	RUN_TEST("MUL BX (16-bit)", cpu->ax.w == 0x0000 && cpu->dx.w == 0x0002);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test DIV */
+void test_div(TestResults *results) {
+	printf("\n=== Testing DIV ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* DIV BL (byte) */
+	init_8086(cpu);
+	cpu->ax.w = 0x0064; /* 100 */
+	cpu->bx.l = 0x0A;   /* 10 */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xF6, 0xF3}, 2); /* DIV BL */
+	do_op(cpu);
+	RUN_TEST("DIV BL", cpu->ax.l == 0x0A && cpu->ax.h == 0x00); /* quotient=10, remainder=0 */
+
+	/* DIV BX (word) */
+	init_8086(cpu);
+	cpu->ax.w = 0x0064; /* low word of dividend */
+	cpu->dx.w = 0x0000; /* high word of dividend */
+	cpu->bx.w = 0x000A; /* divisor */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xF7, 0xF3}, 2); /* DIV BX */
+	do_op(cpu);
+	RUN_TEST("DIV BX", cpu->ax.w == 0x000A && cpu->dx.w == 0x0000);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test AND/OR/XOR */
+void test_logic(TestResults *results) {
+	printf("\n=== Testing Logic Operations ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* AND AL, imm8 */
+	init_8086(cpu);
+	cpu->ax.l = 0xFF;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x24, 0x0F}, 2); /* AND AL, 0x0F */
+	do_op(cpu);
+	RUN_TEST("AND AL, 0x0F", cpu->ax.l == 0x0F);
+
+	/* OR AL, imm8 */
+	init_8086(cpu);
+	cpu->ax.l = 0x0F;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x0C, 0xF0}, 2); /* OR AL, 0xF0 */
+	do_op(cpu);
+	RUN_TEST("OR AL, 0xF0", cpu->ax.l == 0xFF);
+
+	/* XOR AL, imm8 */
+	init_8086(cpu);
+	cpu->ax.l = 0xFF;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x34, 0xFF}, 2); /* XOR AL, 0xFF */
+	do_op(cpu);
+	RUN_TEST("XOR AL, 0xFF (zero)", cpu->ax.l == 0x00 && (cpu->flags & 0x040)); /* Zero flag */
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test shifts/rotates */
+void test_shifts(TestResults *results) {
+	printf("\n=== Testing Shift/Rotate ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* SHL AL, 1 */
+	init_8086(cpu);
+	cpu->ax.l = 0x40;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xD0, 0xE0}, 2); /* SHL AL, 1 */
+	do_op(cpu);
+	RUN_TEST("SHL AL, 1", cpu->ax.l == 0x80);
+
+	/* SHR AL, 1 */
+	init_8086(cpu);
+	cpu->ax.l = 0x80;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xD0, 0xE8}, 2); /* SHR AL, 1 */
+	do_op(cpu);
+	RUN_TEST("SHR AL, 1", cpu->ax.l == 0x40);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test BCD adjustments */
+void test_bcd(TestResults *results) {
+	printf("\n=== Testing BCD Adjustments ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* DAA */
+	init_8086(cpu);
+	cpu->ax.l = 0x15; /* 15 in BCD */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	cpu->flags = 0;
+	write_instr(cpu, (uint8_t[]){0x27}, 1); /* DAA */
+	do_op(cpu);
+	RUN_TEST("DAA (no adjust)", cpu->ax.l == 0x15);
+
+	/* AAA */
+	init_8086(cpu);
+	cpu->ax.l = 0x0F; /* AL > 9 */
+	cpu->flags = 0;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x37}, 1); /* AAA */
+	do_op(cpu);
+	RUN_TEST("AAA adjusts", cpu->ax.l == 0x05 && cpu->ax.h == 0x01);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test CBW/CWD */
+void test_conversions(TestResults *results) {
+	printf("\n=== Testing Conversions ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* CBW with positive value */
+	init_8086(cpu);
+	cpu->ax.l = 0x7F;
+	cpu->ax.h = 0xFF;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x98}, 1); /* CBW */
+	do_op(cpu);
+	RUN_TEST("CBW (positive)", cpu->ax.w == 0x007F);
+
+	/* CBW with negative value */
+	init_8086(cpu);
+	cpu->ax.l = 0x80;
+	cpu->ax.h = 0x00;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x98}, 1); /* CBW */
+	do_op(cpu);
+	RUN_TEST("CBW (negative)", cpu->ax.w == 0xFF80);
+
+	/* CWD with positive value */
+	init_8086(cpu);
+	cpu->ax.w = 0x7FFF;
+	cpu->dx.w = 0xFFFF;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x99}, 1); /* CWD */
+	do_op(cpu);
+	RUN_TEST("CWD (positive)", cpu->ax.w == 0x7FFF && cpu->dx.w == 0x0000);
+
+	/* CWD with negative value */
+	init_8086(cpu);
+	cpu->ax.w = 0x8000;
+	cpu->dx.w = 0x0000;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x99}, 1); /* CWD */
+	do_op(cpu);
+	RUN_TEST("CWD (negative)", cpu->ax.w == 0x8000 && cpu->dx.w == 0xFFFF);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test string operations */
+void test_strings(TestResults *results) {
+	printf("\n=== Testing String Operations ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* STOSB */
+	init_8086(cpu);
+	cpu->ax.l = 0x42;
+	cpu->es = 0x1000;
+	cpu->di = 0x0100;
+	cpu->flags = 0; /* DF=0, increment */
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xAA}, 1); /* STOSB */
+	do_op(cpu);
+	uint8_t stored = cpu_read_byte(cpu, (0x1000 << 4) + 0x0100);
+	RUN_TEST("STOSB", stored == 0x42 && cpu->di == 0x0101);
+
+	/* LODSB */
+	init_8086(cpu);
+	cpu->ds = 0x1000;
+	cpu->si = 0x0100;
+	cpu->flags = 0;
+	cpu->ip = 0x0200;
+	cpu->cs = 0x1000;
+	cpu_write_byte(cpu, (0x1000 << 4) + 0x0100, 0x88);
+	write_instr(cpu, (uint8_t[]){0xAC}, 1); /* LODSB */
+	do_op(cpu);
+	RUN_TEST("LODSB", cpu->ax.l == 0x88 && cpu->si == 0x0101);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test stack operations */
+void test_stack(TestResults *results) {
+	printf("\n=== Testing Stack Operations ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* PUSH AX */
+	init_8086(cpu);
+	cpu->ax.w = 0x1234;
+	cpu->ss = 0x2000;
+	cpu->sp = 0x0100;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0x50}, 1); /* PUSH AX */
+	do_op(cpu);
+	uint16_t pushed = cpu_read_word(cpu, (0x2000 << 4) + 0x00FE);
+	RUN_TEST("PUSH AX", pushed == 0x1234 && cpu->sp == 0x00FE);
+
+	/* POP BX */
+	init_8086(cpu);
+	cpu->ss = 0x2000;
+	cpu->sp = 0x00FE;
+	cpu->bx.w = 0x0000;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	cpu_write_word(cpu, (0x2000 << 4) + 0x00FE, 0x5678);
+	write_instr(cpu, (uint8_t[]){0x5B}, 1); /* POP BX */
+	do_op(cpu);
+	RUN_TEST("POP BX", cpu->bx.w == 0x5678 && cpu->sp == 0x0100);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test jumps */
+void test_jumps(TestResults *results) {
+	printf("\n=== Testing Jumps ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* JMP short */
+	init_8086(cpu);
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xEB, 0x10}, 2); /* JMP short +16 */
+	do_op(cpu);
+	RUN_TEST("JMP short", cpu->ip == 0x0112);
+
+	/* JZ (taken) */
+	init_8086(cpu);
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	cpu->flags = 0x040; /* ZF=1 */
+	write_instr(cpu, (uint8_t[]){0x74, 0x05}, 2); /* JZ +5 */
+	do_op(cpu);
+	RUN_TEST("JZ (taken)", cpu->ip == 0x0107);
+
+	/* JZ (not taken) */
+	init_8086(cpu);
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	cpu->flags = 0x000; /* ZF=0 */
+	write_instr(cpu, (uint8_t[]){0x74, 0x05}, 2); /* JZ +5 */
+	do_op(cpu);
+	RUN_TEST("JZ (not taken)", cpu->ip == 0x0102);
+
+	free(cpu->ram);
+	free(cpu);
+}
+
+/* Test MOV variants */
+void test_mov(TestResults *results) {
+	printf("\n=== Testing MOV Variants ===\n");
+	X86Cpu *cpu = malloc(sizeof(X86Cpu));
+
+	/* MOV AL, imm8 */
+	init_8086(cpu);
+	cpu->ax.l = 0x00;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xB0, 0x42}, 2); /* MOV AL, 0x42 */
+	do_op(cpu);
+	RUN_TEST("MOV AL, imm8", cpu->ax.l == 0x42 && cpu->ip == 0x0102);
+
+	/* MOV AX, imm16 */
+	init_8086(cpu);
+	cpu->ax.w = 0x0000;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xB8, 0x34, 0x12}, 3); /* MOV AX, 0x1234 */
+	do_op(cpu);
+	RUN_TEST("MOV AX, imm16", cpu->ax.w == 0x1234 && cpu->ip == 0x0103);
+
+	/* MOV [offset], AL */
+	init_8086(cpu);
+	cpu->ax.l = 0x99;
+	cpu->ds = 0x1000;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	write_instr(cpu, (uint8_t[]){0xA2, 0x50, 0x00}, 3); /* MOV [0x0050], AL */
+	do_op(cpu);
+	uint8_t stored_val = cpu_read_byte(cpu, (0x1000 << 4) + 0x0050);
+	RUN_TEST("MOV [offset], AL", stored_val == 0x99);
+
+	/* MOV AL, [offset] */
+	init_8086(cpu);
+	cpu->ax.l = 0x00;
+	cpu->ds = 0x1000;
+	cpu->ip = 0x0100;
+	cpu->cs = 0x1000;
+	cpu_write_byte(cpu, (0x1000 << 4) + 0x0050, 0x77);
+	write_instr(cpu, (uint8_t[]){0xA0, 0x50, 0x00}, 3); /* MOV AL, [0x0050] */
+	do_op(cpu);
+	RUN_TEST("MOV AL, [offset]", cpu->ax.l == 0x77);
 
 	free(cpu->ram);
 	free(cpu);
@@ -226,10 +547,25 @@ int main(int argc, char **argv)
 
 	printf("=================================================\n");
 	printf("  Project Acorn - 8086 CPU Test Suite\n");
+	printf("  Comprehensive Instruction Testing\n");
 	printf("=================================================\n");
 
-	/* Run tests for implemented instructions */
-	test_mov_al_imm8(&results);
+	/* Run all test suites */
+	test_add(&results);
+	test_adc(&results);
+	test_sub(&results);
+	test_sbb(&results);
+	test_inc_dec(&results);
+	test_mul(&results);
+	test_div(&results);
+	test_logic(&results);
+	test_shifts(&results);
+	test_bcd(&results);
+	test_conversions(&results);
+	test_strings(&results);
+	test_stack(&results);
+	test_jumps(&results);
+	test_mov(&results);
 
 	/* Print summary */
 	printf("\n=================================================\n");
