@@ -58,12 +58,11 @@ int main(int argc, char **argv)
 	}
 
 	/* Create renderer for future graphics output */
-	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
 	if (renderer == NULL) {
-		fprintf(stderr, "Renderer creation failed: %s\n", SDL_GetError());
-		SDL_DestroyWindow(window);
-		SDL_Quit();
-		return 1;
+		/* Renderer may fail in headless environments, but continue anyway */
+		fprintf(stderr, "Warning: Renderer creation failed: %s\n", SDL_GetError());
+		fprintf(stderr, "Continuing without renderer (headless mode)\n");
 	}
 
 	/* Initialize CPU and load BIOS */
@@ -80,7 +79,9 @@ int main(int argc, char **argv)
 	free(cpu->ram);
 	free(cpu);
 
-	SDL_DestroyRenderer(renderer);
+	if (renderer != NULL) {
+		SDL_DestroyRenderer(renderer);
+	}
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 
