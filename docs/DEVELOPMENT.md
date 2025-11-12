@@ -17,15 +17,17 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - Interrupt handling
 
 **Tasks:**
+- [ ] Review CPU state, encapsulate where necessary, other code improvements
+- [ ] Add comprehensive CPU state debugging output
+- [ ] Create CPU test framework using https://github.com/singleStepTests/8086
+- [ ] Complete ModR/M byte decoding for all addressing modes
+- [ ] Implement proper segment register handling
 - [ ] Implement all arithmetic instructions (ADD, SUB, MUL, DIV, etc.)
 - [ ] Implement all logical instructions (AND, OR, XOR, NOT, TEST)
 - [ ] Implement all shift/rotate instructions (SHL, SHR, SAL, SAR, ROL, ROR, RCL, RCR)
 - [ ] Implement all control flow instructions (CALL, RET, INT, IRET)
 - [ ] Implement string operations (MOVS, CMPS, SCAS, LODS, STOS)
-- [ ] Complete ModR/M byte decoding for all addressing modes
-- [ ] Implement proper segment register handling
-- [ ] Add comprehensive CPU state debugging output
-- [ ] Create CPU test suite based on known instruction behaviors
+
 
 **Estimated Time:** 3-4 months
 
@@ -48,7 +50,6 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [ ] Implement timer (8253/8254 PIT)
 - [ ] Add memory read/write tracking for debugging
 
-**Estimated Time:** 2-3 months
 
 ### Phase 3: Video Output
 
@@ -71,7 +72,6 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [ ] Implement cursor blinking
 - [ ] Add color palette emulation for CGA
 
-**Estimated Time:** 2-3 months
 
 ### Phase 4: Peripheral Devices
 
@@ -91,8 +91,6 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [ ] Add parallel port emulation
 - [ ] Implement keyboard buffer and interrupts
 
-**Estimated Time:** 2-3 months
-
 ### Phase 5: Storage
 
 **Status:** Not Started
@@ -110,8 +108,6 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [ ] Implement BIOS INT 13h disk services
 - [ ] Add support for bootable disk images
 - [ ] Implement disk change detection
-
-**Estimated Time:** 3-4 months
 
 ### Phase 6: System Integration and Testing
 
@@ -134,8 +130,6 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [ ] Add execution tracing and logging options
 - [ ] Create comprehensive test suite
 - [ ] Write user documentation
-
-**Estimated Time:** 3-4 months
 
 ### Phase 7: Advanced Features (Future)
 
