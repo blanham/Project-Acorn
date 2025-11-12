@@ -1,25 +1,70 @@
+# Compiled object files
 *.o
-*.sw*
+*.obj
+*.lo
 
-# Meson build artifacts
-build/
-builddir/
-*.dmp
-
-# Old build artifacts
+# Executables
 B8086
 bpc
+test_runner
 
-# Binary files
-*.bin
-*.BIN
-*.tar.gz
+# Build directories
+build/
+builddir/
+.meson/
 
-# Test files
-test
-new
+# Memory dumps and debug files
+*.dmp
 ram.dmp
 
-# Test files and binaries
-test_runner
+# BIOS ROM files (uncomment if you want to track them)
+# *.bin
+# *.BIN
+
+# Compressed archives
+*.tar.gz
+*.zip
+*.tgz
+
+# Test files and directories
+test
+new
 tests/8086_tests/
+
+# Editor and IDE files
+*.sw*
+*.swp
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+*.log
+
+# Core dumps
+core
+core.*
+
+# Dependency files
+*.d
+
+# Static and shared libraries
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Assembly listings
+*.lst
+*.s
+
+# Preprocessor output
+*.i
+
+# Debug info
+*.pdb
+*.ilk
