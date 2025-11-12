@@ -1646,6 +1646,51 @@ static inline void lahf(X86Cpu *cpu)
 	cpu->ip++;
 }
 
+/* MOV with ModR/M (0x88-0x8B) */
+static inline void mov_modrm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = !(opcode & 0x01);
+	bool direction = opcode & 0x02;  /* 0=reg to r/m, 1=r/m to reg */
+
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	if (is_byte) {
+		uint8_t *reg_ptr = get_reg8_ptr(cpu, modrm.reg);
+		if (direction) {
+			/* MOV reg, r/m */
+			if (modrm.is_memory)
+				*reg_ptr = cpu_read_byte(cpu, modrm.ea);
+			else
+				*reg_ptr = *get_reg8_ptr(cpu, modrm.rm);
+		} else {
+			/* MOV r/m, reg */
+			if (modrm.is_memory)
+				cpu_write_byte(cpu, modrm.ea, *reg_ptr);
+			else
+				*get_reg8_ptr(cpu, modrm.rm) = *reg_ptr;
+		}
+	} else {
+		uint16_t *reg_ptr = get_reg16_ptr(cpu, modrm.reg);
+		if (direction) {
+			/* MOV reg, r/m */
+			if (modrm.is_memory)
+				*reg_ptr = cpu_read_word(cpu, modrm.ea);
+			else
+				*reg_ptr = *get_reg16_ptr(cpu, modrm.rm);
+		} else {
+			/* MOV r/m, reg */
+			if (modrm.is_memory)
+				cpu_write_word(cpu, modrm.ea, *reg_ptr);
+			else
+				*get_reg16_ptr(cpu, modrm.rm) = *reg_ptr;
+		}
+	}
+
+	cpu->ip += 1 + modrm.length;
+}
+
 /* MOV immediate to register (0xB0 - 0xBF) */
 static inline void mov(X86Cpu *cpu)
 {
@@ -1744,4 +1789,94 @@ static inline void mov(X86Cpu *cpu)
 			cpu->running = 0;
 			break;
 	}
+}
+
+/* XCHG - Exchange register/memory with register (0x86-0x87) */
+static inline void xchg_modrm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = !(opcode & 0x01);
+
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	if (is_byte) {
+		uint8_t *reg_ptr = get_reg8_ptr(cpu, modrm.reg);
+		uint8_t temp = *reg_ptr;
+
+		if (modrm.is_memory) {
+			*reg_ptr = cpu_read_byte(cpu, modrm.ea);
+			cpu_write_byte(cpu, modrm.ea, temp);
+		} else {
+			uint8_t *rm_ptr = get_reg8_ptr(cpu, modrm.rm);
+			*reg_ptr = *rm_ptr;
+			*rm_ptr = temp;
+		}
+	} else {
+		uint16_t *reg_ptr = get_reg16_ptr(cpu, modrm.reg);
+		uint16_t temp = *reg_ptr;
+
+		if (modrm.is_memory) {
+			*reg_ptr = cpu_read_word(cpu, modrm.ea);
+			cpu_write_word(cpu, modrm.ea, temp);
+		} else {
+			uint16_t *rm_ptr = get_reg16_ptr(cpu, modrm.rm);
+			*reg_ptr = *rm_ptr;
+			*rm_ptr = temp;
+		}
+	}
+
+	cpu->ip += 1 + modrm.length;
+}
+
+/* XCHG AX with register (0x90-0x97) */
+static inline void xchg_ax(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint8_t reg = opcode & 0x07;
+
+	/* 0x90 is NOP (XCHG AX, AX) */
+	if (reg != 0) {
+		uint16_t *reg_ptr = get_reg16_ptr(cpu, reg);
+		uint16_t temp = cpu->ax.w;
+		cpu->ax.w = *reg_ptr;
+		*reg_ptr = temp;
+	}
+
+	cpu->ip++;
+}
+
+/* NOP (0x90) - No operation */
+static inline void nop(X86Cpu *cpu)
+{
+	cpu->ip++;
+}
+
+/* HLT (0xF4) - Halt */
+static inline void hlt(X86Cpu *cpu)
+{
+	cpu->running = 0;
+	cpu->ip++;
+}
+
+/* STI (0xFB) - Set interrupt flag */
+static inline void sti(X86Cpu *cpu)
+{
+	set_flag(cpu, FLAGS_INT);
+	cpu->ip++;
+}
+
+/* CLD (0xFC) - Clear direction flag */
+static inline void cld(X86Cpu *cpu)
+{
+	clear_flag(cpu, FLAGS_DF);
+	cpu->ip++;
+}
+
+/* STD (0xFD) - Set direction flag */
+static inline void std(X86Cpu *cpu)
+{
+	set_flag(cpu, FLAGS_DF);
+	cpu->ip++;
 }

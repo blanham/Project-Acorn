@@ -271,6 +271,21 @@ int do_op(X86Cpu *cpu)
 			test_op(cpu);
 			break;
 
+		/* XCHG r/m with register (0x86-0x87) */
+		case 0x86 ... 0x87:
+			xchg_modrm(cpu);
+			break;
+
+		/* MOV with ModR/M (0x88-0x8B) */
+		case 0x88 ... 0x8B:
+			mov_modrm(cpu);
+			break;
+
+		/* XCHG AX with register / NOP (0x90-0x97) */
+		case 0x90 ... 0x97:
+			xchg_ax(cpu);
+			break;
+
 		/* CALL far (0x9A) - Call far procedure */
 		case 0x9A:
 			call_far(cpu);
@@ -389,11 +404,31 @@ int do_op(X86Cpu *cpu)
 			jmp_short(cpu);
 			break;
 
+		/* HLT (0xF4) - Halt */
+		case 0xF4:
+			hlt(cpu);
+			break;
+
 		/* CLI - Clear interrupt flag (0xFA) */
 		case 0xFA:
 			printf("%.2X CLI ", opcode);
 			clear_flag(cpu, FLAGS_INT);
 			cpu->ip++;
+			break;
+
+		/* STI (0xFB) - Set interrupt flag */
+		case 0xFB:
+			sti(cpu);
+			break;
+
+		/* CLD (0xFC) - Clear direction flag */
+		case 0xFC:
+			cld(cpu);
+			break;
+
+		/* STD (0xFD) - Set direction flag */
+		case 0xFD:
+			std(cpu);
 			break;
 
 		/* Undefined opcode */
