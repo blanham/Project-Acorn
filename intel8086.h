@@ -70,7 +70,8 @@ void cpu_write_word(X86Cpu *cpu, uint32_t addr, uint16_t value);
 /* Calculate physical address from segment:offset */
 static inline uint32_t cpu_calc_addr(uint16_t segment, uint16_t offset)
 {
-	return ((uint32_t)segment << 4) + offset;
+	/* 8086 has 20-bit address bus, addresses wrap at 1MB */
+	return (((uint32_t)segment << 4) + offset) & 0xFFFFF;
 }
 
 /* Get current program counter (physical address) */

@@ -2941,7 +2941,7 @@ static inline void grp4_5(X86Cpu *cpu)
 				else
 					*get_reg16_ptr(cpu, modrm.rm) = result;
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;  /* +1 for opcode byte */
 			break;
 		}
 
@@ -2976,7 +2976,7 @@ static inline void grp4_5(X86Cpu *cpu)
 				else
 					*get_reg16_ptr(cpu, modrm.rm) = result;
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;  /* +1 for opcode byte */
 			break;
 		}
 
@@ -2996,7 +2996,7 @@ static inline void grp4_5(X86Cpu *cpu)
 			}
 
 			/* Push return address */
-			push_word(cpu, cpu->ip + modrm.length);
+			push_word(cpu, cpu->ip + 1 + modrm.length);  /* +1 for opcode byte */
 			cpu->ip = target;
 			break;
 		}
@@ -3014,7 +3014,7 @@ static inline void grp4_5(X86Cpu *cpu)
 
 			/* Push CS and IP */
 			push_word(cpu, cpu->cs);
-			push_word(cpu, cpu->ip + modrm.length);
+			push_word(cpu, cpu->ip + 1 + modrm.length);  /* +1 for opcode byte */
 
 			cpu->ip = offset;
 			cpu->cs = segment;
@@ -3069,7 +3069,7 @@ static inline void grp4_5(X86Cpu *cpu)
 			}
 
 			push_word(cpu, value);
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;  /* +1 for opcode byte */
 			break;
 		}
 
