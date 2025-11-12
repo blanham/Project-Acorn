@@ -1661,7 +1661,6 @@ static inline void jcc(X86Cpu *cpu)
 /* SAHF - Store AH into flags (0x9E) */
 static inline void sahf(X86Cpu *cpu)
 {
-	printf("SAHF");
 	/* Load SF, ZF, AF, PF, CF from AH (bits 7,6,4,2,0) */
 	/* Bit 1 is always 1, bits 5,3 are always 0 */
 	cpu->flags = (cpu->flags & 0xFF00) | (cpu->ax.h & 0xD5) | 0x02;
@@ -1671,7 +1670,6 @@ static inline void sahf(X86Cpu *cpu)
 /* LAHF - Load flags into AH (0x9F) */
 static inline void lahf(X86Cpu *cpu)
 {
-	printf("LAHF");
 	/* Store SF, ZF, AF, PF, CF into AH (bits 7,6,4,2,0) plus bit 1 */
 	cpu->ax.h = (cpu->flags & 0xD7);  /* 0xD7 = bits 7,6,4,2,1,0 */
 	cpu->ip++;
