@@ -1708,6 +1708,40 @@ static inline void mov_modrm(X86Cpu *cpu)
 	cpu->ip += 1 + modrm.length;
 }
 
+/* MOV r/m, imm (0xC6-0xC7) - Group 11 */
+static inline void mov_rm_imm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xC6);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	/* For Group 11, reg field must be 0 (MOV) */
+	if (modrm.reg != 0) {
+		fprintf(stderr, "MOV r/m,imm: Invalid reg field %d\n", modrm.reg);
+		cpu->ip += 1 + modrm.length;
+		return;
+	}
+
+	if (is_byte) {
+		uint8_t imm = cpu_read_byte(cpu, pc + 1 + modrm.length);
+		if (modrm.is_memory) {
+			cpu_write_byte(cpu, modrm.ea, imm);
+		} else {
+			*get_reg8_ptr(cpu, modrm.rm) = imm;
+		}
+		cpu->ip += 1 + modrm.length + 1;
+	} else {
+		uint16_t imm = cpu_read_word(cpu, pc + 1 + modrm.length);
+		if (modrm.is_memory) {
+			cpu_write_word(cpu, modrm.ea, imm);
+		} else {
+			*get_reg16_ptr(cpu, modrm.rm) = imm;
+		}
+		cpu->ip += 1 + modrm.length + 2;
+	}
+}
+
 /* MOV immediate to register (0xB0 - 0xBF) */
 static inline void mov(X86Cpu *cpu)
 {

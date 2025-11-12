@@ -462,6 +462,22 @@ int do_op(X86Cpu *cpu)
 			lds(cpu);
 			break;
 
+		/* MOV r/m, imm (0xC6-0xC7) */
+		case 0xC6:
+		case 0xC7:
+			mov_rm_imm(cpu);
+			break;
+
+		/* ENTER/RETF imm16 (0xC8) - On 8086, this is undocumented RETF with imm */
+		case 0xC8:
+			ret_far_pop(cpu);
+			break;
+
+		/* LEAVE/RETF (0xC9) - On 8086, this is RETF */
+		case 0xC9:
+			ret_far(cpu);
+			break;
+
 		/* RET far (0xCB) */
 		case 0xCB:
 			ret_far(cpu);
