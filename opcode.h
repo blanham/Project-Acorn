@@ -1,6 +1,12 @@
+/* This file is part of Project Acorn.
+ * Licensed under the University of Illinois/NCSA Open Source License.
+ * See LICENSE file in the project root for full license information.
+ */
+
 #include <stdio.h>
 #include <stdbool.h>
 #include "intel8086.h"
+
 #define FLAGS_CF	0x001
 #define FLAGS_PF 	0x004
 #define FLAGS_ZF 	0x040

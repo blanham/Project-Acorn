@@ -1,19 +1,11 @@
 #ifndef I86_H
 #define I86_H
 
-/* This file is part of Project Acorn.  Project Acorn is free software: you can
- * redistribute it and/or modify it under the terms of the GNU General Public
- * License as published by the Free Software Foundation, version 2.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 51
- * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+/* This file is part of Project Acorn.
+ * Licensed under the University of Illinois/NCSA Open Source License.
+ * See LICENSE file in the project root for full license information.
  */
+
 #include <stdint.h>
 
 typedef union {
