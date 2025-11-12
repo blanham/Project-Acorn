@@ -19,3 +19,7 @@ bpc
 test
 new
 ram.dmp
+
+# Test files and binaries
+test_runner
+tests/8086_tests/

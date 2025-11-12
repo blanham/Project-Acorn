@@ -94,25 +94,39 @@ void load_bios(X86Cpu *cpu, char *filename)
 	#define BIOS_SIZE 0x10000
 	#define BIOS_ADDR 0xF0000
 	uint8_t *tmp = malloc(BIOS_SIZE);
-	bios = fopen(filename, "rb");
+	size_t bytes_read;
 
+	if (tmp == NULL) {
+		fprintf(stderr, "Failed to allocate memory for BIOS\n");
+		exit(1);
+	}
+
+	bios = fopen(filename, "rb");
 	if (bios == NULL) {
 		fprintf(stderr, "BIOS %s not found!\n", filename);
 		free(tmp);
 		exit(1);
 	}
 
-	fread(tmp, 1, BIOS_SIZE, bios);
+	bytes_read = fread(tmp, 1, BIOS_SIZE, bios);
+	if (bytes_read != BIOS_SIZE) {
+		fprintf(stderr, "Warning: Only read %zu bytes from BIOS (expected %d)\n",
+			bytes_read, BIOS_SIZE);
+	}
+
 	memcpy(&cpu->ram[BIOS_ADDR], tmp, BIOS_SIZE);
-	printf("%x\n", tmp[0]);
+	printf("BIOS loaded: first byte = 0x%02X\n", tmp[0]);
+
 	free(tmp);
 	fclose(bios);
 }
 
 int main_loop(X86Cpu *cpu, int instructions)
 {
-	cpu->running = 1;
-	fprintf(stderr, "starting at %x\n", cpu->ip | (cpu->cs << 4));
+	uint32_t start_pc = cpu_get_pc(cpu);
+	fprintf(stderr, "Starting execution at 0x%08X (%04X:%04X)\n",
+		start_pc, cpu->cs, cpu->ip);
+
 	while ((cpu->running == 1) && (instructions > 0)) {
 		do_op(cpu);
 		printf("\n");
