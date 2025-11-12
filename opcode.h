@@ -1649,7 +1649,8 @@ static inline void sahf(X86Cpu *cpu)
 {
 	printf("SAHF");
 	/* Load SF, ZF, AF, PF, CF from AH (bits 7,6,4,2,0) */
-	cpu->flags = (cpu->flags & 0xFF00) | cpu->ax.h;
+	/* Bit 1 is always 1, bits 5,3 are always 0 */
+	cpu->flags = (cpu->flags & 0xFF00) | (cpu->ax.h & 0xD5) | 0x02;
 	cpu->ip++;
 }
 
@@ -1657,8 +1658,8 @@ static inline void sahf(X86Cpu *cpu)
 static inline void lahf(X86Cpu *cpu)
 {
 	printf("LAHF");
-	/* Store SF, ZF, AF, PF, CF into AH */
-	cpu->ax.h = (cpu->flags & 0xFF);
+	/* Store SF, ZF, AF, PF, CF into AH (bits 7,6,4,2,0) plus bit 1 */
+	cpu->ax.h = (cpu->flags & 0xD7);  /* 0xD7 = bits 7,6,4,2,1,0 */
 	cpu->ip++;
 }
 
