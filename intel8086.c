@@ -167,8 +167,44 @@ void print_cpu_state(X86Cpu *cpu)
 
 int do_op(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
-	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint32_t pc;
+	uint8_t opcode;
+
+	/* Process prefixes in a loop, then execute the actual instruction */
+	while (1) {
+		pc = cpu_get_pc(cpu);
+		opcode = cpu_read_byte(cpu, pc);
+
+		/* Check for prefix bytes */
+		if (opcode == 0x26) {  /* ES: */
+			cpu->seg_override = 1;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x2E) {  /* CS: */
+			cpu->seg_override = 2;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x36) {  /* SS: */
+			cpu->seg_override = 3;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x3E) {  /* DS: */
+			cpu->seg_override = 4;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0xF0) {  /* LOCK */
+			/* LOCK prefix - for single-CPU emulation, just skip */
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0xF2 || opcode == 0xF3) {  /* REP/REPNE */
+			/* REP prefix - for single-step tests, just recognize and skip */
+			cpu->ip++;
+			continue;
+		}
+
+		/* Not a prefix, execute the actual instruction */
+		break;
+	}
 
 	switch (opcode) {
 		/* ADD - Add (0x00-0x05) */
@@ -291,9 +327,14 @@ int do_op(X86Cpu *cpu)
 			pop_reg16(cpu);
 			break;
 
-		/* Conditional jumps (0x70-0x7F) */
-		case 0x70 ... 0x7F:
+		/* Conditional jumps (0x60-0x7F) - 0x60-0x6F are aliases for 0x70-0x7F on 8086 */
+		case 0x60 ... 0x7F:
 			jcc(cpu);
+			break;
+
+		/* Grp1 - Immediate ALU operations (0x80-0x83) */
+		case 0x80 ... 0x83:
+			grp1_imm(cpu);
 			break;
 
 		/* TEST - Logical compare (0x84-0x85) */
@@ -322,6 +363,11 @@ int do_op(X86Cpu *cpu)
 			lea(cpu);
 			break;
 
+		/* POP r/m (0x8F) */
+		case 0x8F:
+			pop_rm(cpu);
+			break;
+
 		/* XCHG AX with register / NOP (0x90-0x97) */
 		case 0x90 ... 0x97:
 			xchg_ax(cpu);
@@ -340,6 +386,11 @@ int do_op(X86Cpu *cpu)
 		/* CALL far (0x9A) - Call far procedure */
 		case 0x9A:
 			call_far(cpu);
+			break;
+
+		/* WAIT/FWAIT (0x9B) - Wait for FPU */
+		case 0x9B:
+			wait_op(cpu);
 			break;
 
 		/* PUSHF (0x9C) - Push flags register */
@@ -400,8 +451,8 @@ int do_op(X86Cpu *cpu)
 			mov(cpu);
 			break;
 
-		/* RET near with pop (0xC2) */
-		case 0xC2:
+		/* RET near with pop (0xC0-0xC2) - C0/C1 are aliases on 8086 */
+		case 0xC0 ... 0xC2:
 			ret_near_pop(cpu);
 			break;
 
@@ -423,6 +474,22 @@ int do_op(X86Cpu *cpu)
 		/* LDS - Load pointer to DS (0xC5) */
 		case 0xC5:
 			lds(cpu);
+			break;
+
+		/* MOV r/m, imm (0xC6-0xC7) */
+		case 0xC6:
+		case 0xC7:
+			mov_rm_imm(cpu);
+			break;
+
+		/* ENTER/RETF imm16 (0xC8) - On 8086, this is undocumented RETF with imm */
+		case 0xC8:
+			ret_far_pop(cpu);
+			break;
+
+		/* LEAVE/RETF (0xC9) - On 8086, this is RETF */
+		case 0xC9:
+			ret_far(cpu);
 			break;
 
 		/* RET far (0xCB) */
@@ -465,6 +532,28 @@ int do_op(X86Cpu *cpu)
 			aad(cpu);
 			break;
 
+		/* SALC - Set AL from Carry (0xD6) - Undocumented */
+		case 0xD6:
+			salc(cpu);
+			break;
+
+		/* XLAT/XLATB - Translate Byte (0xD7) */
+		case 0xD7:
+			xlat(cpu);
+			break;
+
+		/* FPU ESC instructions (0xD8-0xDF) - Escape to 8087 FPU */
+		case 0xD8:  /* ESC 0 */
+		case 0xD9:  /* ESC 1 */
+		case 0xDA:  /* ESC 2 */
+		case 0xDB:  /* ESC 3 */
+		case 0xDC:  /* ESC 4 */
+		case 0xDD:  /* ESC 5 */
+		case 0xDE:  /* ESC 6 */
+		case 0xDF:  /* ESC 7 */
+			esc_op(cpu);
+			break;
+
 		/* LOOPNZ/LOOPNE (0xE0) */
 		case 0xE0:
 			loopnz(cpu);
@@ -483,6 +572,26 @@ int do_op(X86Cpu *cpu)
 		/* JCXZ (0xE3) */
 		case 0xE3:
 			jcxz(cpu);
+			break;
+
+		/* IN AL, imm8 (0xE4) */
+		case 0xE4:
+			in_al_imm(cpu);
+			break;
+
+		/* IN AX, imm8 (0xE5) */
+		case 0xE5:
+			in_ax_imm(cpu);
+			break;
+
+		/* OUT imm8, AL (0xE6) */
+		case 0xE6:
+			out_imm_al(cpu);
+			break;
+
+		/* OUT imm8, AX (0xE7) */
+		case 0xE7:
+			out_imm_ax(cpu);
 			break;
 
 		/* CALL near (0xE8) */
@@ -505,9 +614,45 @@ int do_op(X86Cpu *cpu)
 			jmp_short(cpu);
 			break;
 
+		/* IN AL, DX (0xEC) */
+		case 0xEC:
+			in_al_dx(cpu);
+			break;
+
+		/* IN AX, DX (0xED) */
+		case 0xED:
+			in_ax_dx(cpu);
+			break;
+
+		/* OUT DX, AL (0xEE) */
+		case 0xEE:
+			out_dx_al(cpu);
+			break;
+
+		/* OUT DX, AX (0xEF) */
+		case 0xEF:
+			out_dx_ax(cpu);
+			break;
+
+		/* INT1/ICEBP (0xF1) - Undefined opcode / ICE breakpoint */
+		case 0xF1:
+			/* Treat as undefined for now */
+			undef_op(cpu);
+			cpu->running = 0;
+			break;
+
 		/* HLT (0xF4) - Halt */
 		case 0xF4:
 			hlt(cpu);
+			break;
+
+		/* CMC (0xF5) - Complement carry flag */
+		case 0xF5:
+			if (cpu->flags & FLAGS_CF)
+				clear_flag(cpu, FLAGS_CF);
+			else
+				set_flag(cpu, FLAGS_CF);
+			cpu->ip++;
 			break;
 
 		/* Grp3 - TEST/NOT/NEG/MUL/IMUL/DIV/IDIV (0xF6-0xF7) */
@@ -515,9 +660,20 @@ int do_op(X86Cpu *cpu)
 			grp3(cpu);
 			break;
 
+		/* CLC (0xF8) - Clear carry flag */
+		case 0xF8:
+			clear_flag(cpu, FLAGS_CF);
+			cpu->ip++;
+			break;
+
+		/* STC (0xF9) - Set carry flag */
+		case 0xF9:
+			set_flag(cpu, FLAGS_CF);
+			cpu->ip++;
+			break;
+
 		/* CLI - Clear interrupt flag (0xFA) */
 		case 0xFA:
-			printf("%.2X CLI ", opcode);
 			clear_flag(cpu, FLAGS_INT);
 			cpu->ip++;
 			break;
@@ -548,6 +704,9 @@ int do_op(X86Cpu *cpu)
 			cpu->running = 0;
 			break;
 	}
+
+	/* Clear segment override after instruction execution */
+	cpu->seg_override = 0;
 
 	return 0;
 }

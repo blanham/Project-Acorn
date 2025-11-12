@@ -7,6 +7,7 @@
 B8086
 bpc
 test_runner
+json_test_runner
 
 # Build directories
 build/

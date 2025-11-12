@@ -41,6 +41,9 @@ typedef struct {
 	/* Segment registers */
 	uint16_t cs, ds, ss, es;
 
+	/* Segment override prefix state */
+	uint8_t seg_override;  /* 0=none, 1=ES, 2=CS, 3=SS, 4=DS */
+
 	/* Emulator state */
 	int cycles;
 	int running;
