@@ -1175,12 +1175,17 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 				else
 					clear_flag(cpu, FLAGS_CF);
 				update_flags_szp(cpu, result, is_byte);
+				/* Clear AF for all shift operations */
+				clear_flag(cpu, FLAGS_AF);
 				if (count == 1) {
 					bool msb = is_byte ? (result & 0x80) != 0 : (result & 0x8000) != 0;
 					if (msb != new_cf)
 						set_flag(cpu, FLAGS_OV);
 					else
 						clear_flag(cpu, FLAGS_OV);
+				} else {
+					/* OF is cleared for multi-bit shifts */
+					clear_flag(cpu, FLAGS_OV);
 				}
 			}
 			break;
@@ -1196,6 +1201,8 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 				else
 					clear_flag(cpu, FLAGS_CF);
 				update_flags_szp(cpu, result, is_byte);
+				/* Clear AF for all shift operations */
+				clear_flag(cpu, FLAGS_AF);
 				if (count == 1) {
 					/* OF is set if MSB was set before shift */
 					if (is_byte) {
@@ -1209,6 +1216,9 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 						else
 							clear_flag(cpu, FLAGS_OV);
 					}
+				} else {
+					/* OF is cleared for multi-bit shifts */
+					clear_flag(cpu, FLAGS_OV);
 				}
 			}
 			break;
@@ -1230,8 +1240,12 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 				else
 					clear_flag(cpu, FLAGS_CF);
 				update_flags_szp(cpu, result, is_byte);
+				/* Clear AF for all shift operations */
+				clear_flag(cpu, FLAGS_AF);
 				/* OF is always cleared for SAR */
 				if (count == 1)
+					clear_flag(cpu, FLAGS_OV);
+				else
 					clear_flag(cpu, FLAGS_OV);
 			}
 			break;
