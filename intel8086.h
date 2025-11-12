@@ -7,57 +7,73 @@
  */
 
 #include <stdint.h>
+#include <stdbool.h>
 
+/* ShortReg - 16-bit register with high/low byte access
+ * Allows accessing a 16-bit register as either:
+ *   - Two 8-bit registers (h = high byte, l = low byte)
+ *   - One 16-bit register (w = word)
+ */
 typedef union {
 	struct {
-		uint8_t l;
-		uint8_t h;
+		uint8_t l;  /* Low byte (e.g., AL from AX) */
+		uint8_t h;  /* High byte (e.g., AH from AX) */
 	};
-	uint16_t w;
-} ShortReg;	
+	uint16_t w;     /* Full 16-bit word (e.g., AX) */
+} ShortReg;
 
+/* X86Cpu - Complete Intel 8086 CPU state */
 typedef struct {
-	uint8_t *ram;
-	uint32_t pc;
+	uint8_t *ram;      /* Pointer to 1MB RAM */
 
-	//registers
+	/* General purpose registers */
 	ShortReg ax, bx, cx, dx;
-	//Pointer, index
-	uint16_t sp, bp, si, di; 
-	uint16_t ip;
-	uint16_t flags;	
-	uint16_t cs, ds, ss, es; 
 
+	/* Pointer and index registers */
+	uint16_t sp, bp, si, di;
+
+	/* Instruction pointer */
+	uint16_t ip;
+
+	/* Flags register */
+	uint16_t flags;
+
+	/* Segment registers */
+	uint16_t cs, ds, ss, es;
+
+	/* Emulator state */
 	int cycles;
 	int running;
 } X86Cpu;
 
+/* Memory size constant */
+#define RAM_SIZE 0x100000
 
+/* CPU initialization and control */
 void init_8086(X86Cpu *cpu);
-void print_registers(X86Cpu *cpu);
-void print_flags(X86Cpu *cpu);
 int do_op(X86Cpu *cpu);
 
-#define RAM_SIZE 0x100000
-#if 0
-#define PCnew (CS<<4)+IP
-#define AH (AX>>8 & 0xFF)
-#define AL (AX & 0xFF)
-#define CH (CX>>8 & 0xFF) 
-#define CL (CX & 0xFF)
-#define IF (FLAGS>>9 & 0x1)
-#define CF (FLAGS & 0x1)
-#define PF (FLAGS>>2 & 0x1)
-#define SF (FLAGS>>7 & 0x1)
-#define ZF (FLAGS>>6 & 0x1)
-#define OF (FLAGS>>11 & 0x1)
+/* CPU state output functions */
+void print_registers(X86Cpu *cpu);
+void print_flags(X86Cpu *cpu);
+void print_cpu_state(X86Cpu *cpu);
 
+/* Memory access functions */
+uint8_t cpu_read_byte(X86Cpu *cpu, uint32_t addr);
+uint16_t cpu_read_word(X86Cpu *cpu, uint32_t addr);
+void cpu_write_byte(X86Cpu *cpu, uint32_t addr, uint8_t value);
+void cpu_write_word(X86Cpu *cpu, uint32_t addr, uint16_t value);
 
-//macros
-#define CHKZF(arg) if (arg == 0) FLAGS |= 0x40; else FLAGS &= 0xFFBF;
-#define RDRAM(addr) RAM[CS]
-#endif
+/* Calculate physical address from segment:offset */
+static inline uint32_t cpu_calc_addr(uint16_t segment, uint16_t offset)
+{
+	return ((uint32_t)segment << 4) + offset;
+}
 
-
+/* Get current program counter (physical address) */
+static inline uint32_t cpu_get_pc(X86Cpu *cpu)
+{
+	return cpu_calc_addr(cpu->cs, cpu->ip);
+}
 
 #endif

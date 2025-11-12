@@ -9,200 +9,205 @@
 #include <string.h>
 #include <inttypes.h>
 
-//tracer enable/disable
-#define TRACE
-#ifdef TRACE
-#define DPRINTF()
-#else
-#define DPRINTF()
-#endif
-#define SET_PC(x) \
-	cpu->cs = x & 0xFFFF;\
-	cpu->ip = (x >> 4) & 0xFFFF;
-/* Ok, need to structure instructions better:
- * case 0xXX:
- *	InstructionMode(ram[PC+1]); //probably need R/W/M
- *	//the above will go ahead and increase the PC for us
- * 	//do what ever the op code is
- *	
- *
- *
- */
-int (*opcodes[0x100])(X86Cpu *);
+/* Memory access functions */
+
+uint8_t cpu_read_byte(X86Cpu *cpu, uint32_t addr)
+{
+	if (addr >= RAM_SIZE) {
+		fprintf(stderr, "WARNING: Memory read out of bounds: 0x%08X\n", addr);
+		return 0xFF;
+	}
+	return cpu->ram[addr];
+}
+
+uint16_t cpu_read_word(X86Cpu *cpu, uint32_t addr)
+{
+	if (addr + 1 >= RAM_SIZE) {
+		fprintf(stderr, "WARNING: Memory read out of bounds: 0x%08X\n", addr);
+		return 0xFFFF;
+	}
+	/* x86 is little-endian */
+	return cpu->ram[addr] | (cpu->ram[addr + 1] << 8);
+}
+
+void cpu_write_byte(X86Cpu *cpu, uint32_t addr, uint8_t value)
+{
+	if (addr >= RAM_SIZE) {
+		fprintf(stderr, "WARNING: Memory write out of bounds: 0x%08X\n", addr);
+		return;
+	}
+	cpu->ram[addr] = value;
+}
+
+void cpu_write_word(X86Cpu *cpu, uint32_t addr, uint16_t value)
+{
+	if (addr + 1 >= RAM_SIZE) {
+		fprintf(stderr, "WARNING: Memory write out of bounds: 0x%08X\n", addr);
+		return;
+	}
+	/* x86 is little-endian */
+	cpu->ram[addr] = value & 0xFF;
+	cpu->ram[addr + 1] = (value >> 8) & 0xFF;
+}
+
+/* CPU initialization */
+
 int undef_op(X86Cpu *cpu)
 {
-
-	fprintf(stderr,"Undefined opcode %x @ %x",cpu->ram[PC],PC);
+	uint32_t pc = cpu_get_pc(cpu);
+	fprintf(stderr, "Undefined opcode 0x%02X @ 0x%08X\n",
+		cpu_read_byte(cpu, pc), pc);
 	return 1;
-
-
 }
+
 void init_8086(X86Cpu *cpu)
 {
-	int i;
-	for(i = 0; i < 0x100; i++)
-	{
-		opcodes[i] = undef_op;
-	}
-//	opcodes[0xEA] = jmpf;
-	
 	memset(cpu, 0, sizeof(X86Cpu));
+
+	/* Set reset vector values (8086 powers on at F000:FFF0) */
 	cpu->ip = 0xFFF0;
 	cpu->cs = 0xF000;
 	cpu->sp = 0xFFFE;
+
+	/* Allocate and clear RAM */
 	cpu->ram = malloc(RAM_SIZE);
+	if (cpu->ram == NULL) {
+		fprintf(stderr, "FATAL: Failed to allocate CPU RAM\n");
+		exit(1);
+	}
 	memset(cpu->ram, 0, RAM_SIZE);
+
+	/* CPU starts in running state */
+	cpu->running = 1;
+	cpu->cycles = 0;
 }
+
+/* CPU state debugging output functions */
 
 void print_registers(X86Cpu *cpu)
 {
-	printf(" PC: 0x%x AX: %.4X, BX: %.4X, CX: %.4X, DX: %.4X FL: %.4X\n",
-		 PC,cpu->ax.w, cpu->bx.w, cpu->cx.w, cpu->dx.w,cpu->flags);
+	uint32_t pc = cpu_get_pc(cpu);
+	printf("PC: %04X:%04X (0x%08X) ", cpu->cs, cpu->ip, pc);
+	printf("AX: %04X BX: %04X CX: %04X DX: %04X\n",
+		cpu->ax.w, cpu->bx.w, cpu->cx.w, cpu->dx.w);
 }
-
 
 void print_flags(X86Cpu *cpu)
 {
-    printf("FLAGS:");
-	uint16_t FLAGS = cpu->flags;
-    if (FLAGS & 0x800)printf("O");
-    else printf("o");
-    if (FLAGS & 0x400)printf("D");
-    else printf("d");
-    if (FLAGS & 0x200)printf("I");
-    else printf("i");
-    if (FLAGS & 0x100)printf("T");
-    else printf("t");
-    if (FLAGS & 0x80)printf("S");
-    else printf("s");
-    if (FLAGS & 0x40)printf("Z");
-    else printf("z");
-    if (FLAGS & 0x10)printf("A");
-    else printf("a");
-    if (FLAGS & 0x04)printf("P");
-    else printf("p");
-    if (FLAGS & 0x01)printf("C");
-    else printf("c");
+	uint16_t flags = cpu->flags;
+	printf("FLAGS: %04X [", flags);
+
+	/* Print flag names with uppercase = set, lowercase = clear */
+	printf("%c", (flags & 0x800) ? 'O' : 'o');  /* Overflow */
+	printf("%c", (flags & 0x400) ? 'D' : 'd');  /* Direction */
+	printf("%c", (flags & 0x200) ? 'I' : 'i');  /* Interrupt */
+	printf("%c", (flags & 0x100) ? 'T' : 't');  /* Trap */
+	printf("%c", (flags & 0x080) ? 'S' : 's');  /* Sign */
+	printf("%c", (flags & 0x040) ? 'Z' : 'z');  /* Zero */
+	printf("%c", (flags & 0x010) ? 'A' : 'a');  /* Auxiliary carry */
+	printf("%c", (flags & 0x004) ? 'P' : 'p');  /* Parity */
+	printf("%c", (flags & 0x001) ? 'C' : 'c');  /* Carry */
+	printf("]");
 }
 
-/* Disabled - incomplete implementation
-//from GRP2, SHL w/ consant 1
-void SHL1(unsigned char tmp)
+void print_cpu_state(X86Cpu *cpu)
 {
+	uint32_t pc = cpu_get_pc(cpu);
 
-	switch (tmp&0x7)
-	{
-		//case 0:
-			printf("SHL AL,1");
-		//	FLAGS = (FLAGS & 0xFFFE) | ((AL<<1) & 0x01);
-		//	AX = (AH<<8) + (AL<<1);
-		//	ChkPF(AX);
-		//	CHKZF(AX);
-		//	if(CF^SF)
-			{
-		//		FLAGS |= 1<<11;
-			}
-		//	break;
-		default:
-			printf("Missing SHL1 Arg!\n");
-			exit(1);
+	printf("\n========== CPU STATE ==========\n");
 
-	}
+	/* Segment registers */
+	printf("Segment Registers:\n");
+	printf("  CS: %04X  DS: %04X  SS: %04X  ES: %04X\n",
+		cpu->cs, cpu->ds, cpu->ss, cpu->es);
 
+	/* General purpose registers */
+	printf("General Purpose Registers:\n");
+	printf("  AX: %04X (AH: %02X AL: %02X)  BX: %04X (BH: %02X BL: %02X)\n",
+		cpu->ax.w, cpu->ax.h, cpu->ax.l,
+		cpu->bx.w, cpu->bx.h, cpu->bx.l);
+	printf("  CX: %04X (CH: %02X CL: %02X)  DX: %04X (DH: %02X DL: %02X)\n",
+		cpu->cx.w, cpu->cx.h, cpu->cx.l,
+		cpu->dx.w, cpu->dx.h, cpu->dx.l);
+
+	/* Pointer and index registers */
+	printf("Pointer/Index Registers:\n");
+	printf("  SP: %04X  BP: %04X  SI: %04X  DI: %04X\n",
+		cpu->sp, cpu->bp, cpu->si, cpu->di);
+
+	/* Instruction pointer and flags */
+	printf("Instruction Pointer:\n");
+	printf("  IP: %04X  (Physical: %08X)\n", cpu->ip, pc);
+
+	printf("Flags: ");
+	print_flags(cpu);
+	printf("\n");
+
+	/* Current instruction bytes */
+	printf("Current Instruction:\n");
+	printf("  %08X: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		pc,
+		cpu_read_byte(cpu, pc),
+		cpu_read_byte(cpu, pc + 1),
+		cpu_read_byte(cpu, pc + 2),
+		cpu_read_byte(cpu, pc + 3),
+		cpu_read_byte(cpu, pc + 4),
+		cpu_read_byte(cpu, pc + 5),
+		cpu_read_byte(cpu, pc + 6),
+		cpu_read_byte(cpu, pc + 7));
+
+	/* Execution state */
+	printf("Emulator State:\n");
+	printf("  Cycles: %d  Running: %d\n", cpu->cycles, cpu->running);
+
+	printf("===============================\n\n");
 }
-*/
 
+/* Instruction execution dispatcher */
 
-
-int do_op(X86Cpu *cpu) 
+int do_op(X86Cpu *cpu)
 {
-	uint8_t op = cpu->ram[PC];
-	switch (cpu->ram[PC])//cpu->ram[0xFFFF0])
-	{
-//	case 0x32:
-//			printf("XOR");
-			//lets trial some mod reg r/w shit
-		//	if(!(ram[PC+1]&0xC0)) exit(1);
-		//	switch (ram[PC+1]&0x3F)
-			{
-		//		case 0x24:
-		//			printf(" AH,AH");
-	//				AX = ((AX&0xFF00)^(AX&0xFF00)) + AL;
-	//				CHKZF(AX);
-	//				ChkPF(AX);
-					//check if neg
-	//				if(AX&0x8000) FLAGS |= 0x80;
-	//				else FLAGS &= 0xF7F;
-					//zeros Z and O
-	//				FLAGS &= 0x7FE;
-		//			break;
-		//		default:
-		//			break;
-					
-			}
-		//	printf("2nd: %.2X",ram[PC+1]);
-		//	PC += 2;
-	//		break;	
-			
-		//Jumps
-	case 0x70 ... 0x7F:	jcc(cpu);	break;
-			
-	case 0x9E:			sahf(cpu);	break;	
-	case 0x9F: 			lahf(cpu); 	break;
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
 
+	switch (opcode) {
+		/* Conditional jumps (0x70-0x7F) */
+		case 0x70 ... 0x7F:
+			jcc(cpu);
+			break;
 
-	case 0xB0 ... 0xBF:	mov(cpu);	break;
+		/* Flag manipulation */
+		case 0x9E:  /* SAHF - Store AH into flags */
+			sahf(cpu);
+			break;
+		case 0x9F:  /* LAHF - Load flags into AH */
+			lahf(cpu);
+			break;
 
-	//	case 0xD0:
-			//all have 1 as constant
-			//middle 3 bits determine instruction
-	//		tmp = (ram[PC+1]&0x38)>>3;
-	//		if (!(ram[PC+1]&0xC0)) exit(1);
-			//switch (tmp)
-			{
-			//	case 4:
-		//		SHL1(ram[PC+1]);
-			//	break;
-			//	default:
-			//	printf("Unimplemented  GRP2 OP code\n");
-			//	exit(1);
-			}
-	//		PC += 2;
-	//		break;
-	//	case 0xD2:
-			//fix this to match 0xD0
-	//		printf("SHR AH,CL");
-		//	if(ram[PC+1] == 0xEC)
-	//		{
-	//			FLAGS = (FLAGS & 0xFFFE) | ((AH>>(CL-1)) & 0x01);
-	//			AX = AL + ((AH>>CL)<<8);
-	//			ChkPF(AX);
-	//			CHKZF(AX);
-	//			if(CF^SF)
-	//			{
-	//				FLAGS |= 1<<11;
-	//			}	
-	//			PC +=2;
-		//	}else exit(1);
-	//		break;
+		/* MOV immediate to register (0xB0-0xBF) */
+		case 0xB0 ... 0xBF:
+			mov(cpu);
+			break;
+
+		/* Jump far direct (0xEA) */
 		case 0xEA:
 			jmpf(cpu);
 			break;
-		//Flags
+
+		/* CLI - Clear interrupt flag (0xFA) */
 		case 0xFA:
-			printf("%.2x CLI ",op);
+			printf("%.2X CLI ", opcode);
 			clear_flag(cpu, FLAGS_INT);
 			cpu->ip++;
 			break;
+
+		/* Undefined opcode */
 		default:
 			undef_op(cpu);
 			cpu->running = 0;
-			
-
+			break;
 	}
+
 	return 0;
-	//IP = PC & 0xFFFF;
 }
-//need to build functions for address modes(or possibly macros)
-//then functions or macros for operations
 

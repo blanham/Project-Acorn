@@ -8,7 +8,7 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 
 ### Phase 1: Core CPU Implementation (Current Phase)
 
-**Status:** In Progress (≈15% complete)
+**Status:** In Progress (≈30% complete)
 
 **Goals:**
 - Complete Intel 8086 instruction set implementation
@@ -17,9 +17,9 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - Interrupt handling
 
 **Tasks:**
-- [ ] Review CPU state, encapsulate where necessary, other code improvements
-- [ ] Add comprehensive CPU state debugging output
-- [ ] Create CPU test framework using https://github.com/singleStepTests/8086
+- [x] Review CPU state, encapsulate where necessary, other code improvements
+- [x] Add comprehensive CPU state debugging output
+- [x] Create CPU test framework using https://github.com/singleStepTests/8086
 - [ ] Complete ModR/M byte decoding for all addressing modes
 - [ ] Implement proper segment register handling
 - [ ] Implement all arithmetic instructions (ADD, SUB, MUL, DIV, etc.)
