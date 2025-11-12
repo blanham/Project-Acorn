@@ -8,7 +8,7 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 
 ### Phase 1: Core CPU Implementation (Current Phase)
 
-**Status:** In Progress (≈60% complete)
+**Status:** In Progress (≈75% complete)
 
 **Goals:**
 - Complete Intel 8086 instruction set implementation
@@ -24,14 +24,14 @@ Create a complete, accurate emulator for the IBM PC 5150 (8086-based) that can r
 - [x] Implement arithmetic instructions (ADD, SUB, CMP, INC, DEC)
 - [x] Implement logical instructions (AND, OR, XOR, TEST)
 - [x] Implement shift/rotate instructions (SHL, SHR, SAL, SAR, ROL, ROR, RCL, RCR)
-- [ ] Implement proper segment register handling
+- [x] Implement stack operations (PUSH, POP, PUSHF, POPF)
+- [x] Implement control flow instructions (CALL, RET, INT, IRET, LOOP, JMP, JCXZ)
+- [ ] Implement remaining MOV variants (MOV with ModR/M, segment registers)
 - [ ] Implement multiplication and division (MUL, IMUL, DIV, IDIV)
 - [ ] Implement remaining arithmetic (ADC, SBB, NEG, AAA, DAA, AAS, DAS)
-- [ ] Implement all control flow instructions (CALL, RET, INT, IRET, LOOP)
 - [ ] Implement string operations (MOVS, CMPS, SCAS, LODS, STOS, REP prefix)
-- [ ] Implement stack operations (PUSH, POP, PUSHF, POPF)
-- [ ] Implement remaining MOV variants (MOV with ModR/M, segment registers)
-- [ ] Implement remaining instructions (XCHG, LEA, LDS, LES, NOP, HLT, etc.)
+- [ ] Implement remaining instructions (XCHG, LEA, LDS, LES, NOP, HLT, CBW, CWD, etc.)
+- [ ] Implement proper segment register handling and overrides
 
 
 **Estimated Time:** 3-4 months
