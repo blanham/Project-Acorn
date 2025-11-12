@@ -1411,6 +1411,15 @@ static inline void call_far(X86Cpu *cpu)
 	cpu->ip = new_ip;
 }
 
+/* ============================================================================
+ * WAIT/FWAIT - Wait for FPU (0x9B)
+ * ============================================================================ */
+static inline void wait_op(X86Cpu *cpu)
+{
+	/* No-op for CPU without FPU - just advance IP */
+	cpu->ip++;
+}
+
 /* RET near (0xC3) - Return from procedure */
 static inline void ret_near(X86Cpu *cpu)
 {
@@ -2311,6 +2320,41 @@ static inline void aad(X86Cpu *cpu)
 
 	update_flags_szp(cpu, cpu->ax.l, true);
 	cpu->ip += 2;
+}
+
+/* ============================================================================
+ * SALC - Set AL from Carry (0xD6) - Undocumented instruction
+ * ============================================================================ */
+static inline void salc(X86Cpu *cpu)
+{
+	/* AL = (CF == 1) ? 0xFF : 0x00 */
+	cpu->ax.l = (cpu->flags & FLAGS_CF) ? 0xFF : 0x00;
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * XLAT/XLATB - Translate Byte (0xD7)
+ * ============================================================================ */
+static inline void xlat(X86Cpu *cpu)
+{
+	/* AL = DS:[BX + AL] - Table lookup instruction */
+	uint32_t addr = cpu_calc_addr(cpu->ds, cpu->bx.w + cpu->ax.l);
+	cpu->ax.l = cpu_read_byte(cpu, addr);
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * ESC - Escape to FPU (0xD8-0xDF)
+ * ============================================================================ */
+static inline void esc_op(X86Cpu *cpu)
+{
+	/* ESC instructions pass control to 8087 FPU coprocessor
+	 * Since we don't have FPU, just decode ModR/M and skip instruction
+	 * ESC has format: opcode + ModR/M (+ optional displacement)
+	 */
+	uint32_t pc = cpu_get_pc(cpu);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+	cpu->ip += 1 + modrm.length;  /* Skip opcode + ModR/M + displacement */
 }
 
 /* ============================================================================
@@ -3289,7 +3333,6 @@ static inline void grp1_imm(X86Cpu *cpu)
 /* IN AL, imm8 (0xE4) - Input byte from immediate port */
 static inline void in_al_imm(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
 	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
 	cpu->ax.l = 0xFF;  /* Return 0xFF for unconnected port */
 	cpu->ip += 2;
@@ -3298,7 +3341,6 @@ static inline void in_al_imm(X86Cpu *cpu)
 /* IN AX, imm8 (0xE5) - Input word from immediate port */
 static inline void in_ax_imm(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
 	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
 	cpu->ax.w = 0xFFFF;  /* Return 0xFFFF for unconnected port */
 	cpu->ip += 2;
@@ -3307,7 +3349,6 @@ static inline void in_ax_imm(X86Cpu *cpu)
 /* OUT imm8, AL (0xE6) - Output byte to immediate port */
 static inline void out_imm_al(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
 	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
 	/* uint8_t value = cpu->ax.l; */  /* Value to output (unused) */
 	/* No-op: just advance IP */
@@ -3317,7 +3358,6 @@ static inline void out_imm_al(X86Cpu *cpu)
 /* OUT imm8, AX (0xE7) - Output word to immediate port */
 static inline void out_imm_ax(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
 	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
 	/* uint16_t value = cpu->ax.w; */  /* Value to output (unused) */
 	/* No-op: just advance IP */

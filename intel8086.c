@@ -192,6 +192,10 @@ int do_op(X86Cpu *cpu)
 			cpu->seg_override = 4;
 			cpu->ip++;
 			continue;
+		} else if (opcode == 0xF0) {  /* LOCK */
+			/* LOCK prefix - for single-CPU emulation, just skip */
+			cpu->ip++;
+			continue;
 		} else if (opcode == 0xF2 || opcode == 0xF3) {  /* REP/REPNE */
 			/* REP prefix - for single-step tests, just recognize and skip */
 			cpu->ip++;
@@ -384,6 +388,11 @@ int do_op(X86Cpu *cpu)
 			call_far(cpu);
 			break;
 
+		/* WAIT/FWAIT (0x9B) - Wait for FPU */
+		case 0x9B:
+			wait_op(cpu);
+			break;
+
 		/* PUSHF (0x9C) - Push flags register */
 		case 0x9C:
 			pushf(cpu);
@@ -523,6 +532,28 @@ int do_op(X86Cpu *cpu)
 			aad(cpu);
 			break;
 
+		/* SALC - Set AL from Carry (0xD6) - Undocumented */
+		case 0xD6:
+			salc(cpu);
+			break;
+
+		/* XLAT/XLATB - Translate Byte (0xD7) */
+		case 0xD7:
+			xlat(cpu);
+			break;
+
+		/* FPU ESC instructions (0xD8-0xDF) - Escape to 8087 FPU */
+		case 0xD8:  /* ESC 0 */
+		case 0xD9:  /* ESC 1 */
+		case 0xDA:  /* ESC 2 */
+		case 0xDB:  /* ESC 3 */
+		case 0xDC:  /* ESC 4 */
+		case 0xDD:  /* ESC 5 */
+		case 0xDE:  /* ESC 6 */
+		case 0xDF:  /* ESC 7 */
+			esc_op(cpu);
+			break;
+
 		/* LOOPNZ/LOOPNE (0xE0) */
 		case 0xE0:
 			loopnz(cpu);
@@ -601,6 +632,13 @@ int do_op(X86Cpu *cpu)
 		/* OUT DX, AX (0xEF) */
 		case 0xEF:
 			out_dx_ax(cpu);
+			break;
+
+		/* INT1/ICEBP (0xF1) - Undefined opcode / ICE breakpoint */
+		case 0xF1:
+			/* Treat as undefined for now */
+			undef_op(cpu);
+			cpu->running = 0;
 			break;
 
 		/* HLT (0xF4) - Halt */
