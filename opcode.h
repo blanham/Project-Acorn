@@ -1039,14 +1039,8 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = !(opcode & 0x01);
 	bool use_cl = (opcode & 0x02);  /* 0=count is 1, 1=count is CL */
-	bool use_imm = (opcode >= 0xC0 && opcode <= 0xC1);  /* C0-C1 use immediate byte */
-
 	ModRM modrm = decode_modrm(cpu, pc + 1);
-	uint8_t count;
-	if (use_imm)
-		count = cpu_read_byte(cpu, pc + 1 + modrm.length);
-	else
-		count = use_cl ? cpu->cx.l : 1;
+	uint8_t count = use_cl ? cpu->cx.l : 1;
 	uint8_t operation = modrm.reg;  /* Bits 5-3 specify the operation */
 	uint16_t value, result;
 	bool new_cf, old_cf;
@@ -1269,7 +1263,7 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 			*get_reg16_ptr(cpu, modrm.rm) = result;
 	}
 
-	cpu->ip += 1 + modrm.length + (use_imm ? 1 : 0);
+	cpu->ip += 1 + modrm.length;
 }
 
 /* Stack Operations */
