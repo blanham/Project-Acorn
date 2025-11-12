@@ -3283,3 +3283,77 @@ static inline void grp1_imm(X86Cpu *cpu)
 
 	cpu->ip += 1 + modrm.length + imm_size;
 }
+
+/* I/O Port Operations - Return 0xFF/0xFFFF for unconnected ports */
+
+/* IN AL, imm8 (0xE4) - Input byte from immediate port */
+static inline void in_al_imm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
+	cpu->ax.l = 0xFF;  /* Return 0xFF for unconnected port */
+	cpu->ip += 2;
+}
+
+/* IN AX, imm8 (0xE5) - Input word from immediate port */
+static inline void in_ax_imm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
+	cpu->ax.w = 0xFFFF;  /* Return 0xFFFF for unconnected port */
+	cpu->ip += 2;
+}
+
+/* OUT imm8, AL (0xE6) - Output byte to immediate port */
+static inline void out_imm_al(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
+	/* uint8_t value = cpu->ax.l; */  /* Value to output (unused) */
+	/* No-op: just advance IP */
+	cpu->ip += 2;
+}
+
+/* OUT imm8, AX (0xE7) - Output word to immediate port */
+static inline void out_imm_ax(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	/* uint8_t port = cpu_read_byte(cpu, pc + 1); */  /* Port address (unused) */
+	/* uint16_t value = cpu->ax.w; */  /* Value to output (unused) */
+	/* No-op: just advance IP */
+	cpu->ip += 2;
+}
+
+/* IN AL, DX (0xEC) - Input byte from DX port */
+static inline void in_al_dx(X86Cpu *cpu)
+{
+	/* uint16_t port = cpu->dx.w; */  /* Port address in DX (unused) */
+	cpu->ax.l = 0xFF;  /* Return 0xFF for unconnected port */
+	cpu->ip += 1;
+}
+
+/* IN AX, DX (0xED) - Input word from DX port */
+static inline void in_ax_dx(X86Cpu *cpu)
+{
+	/* uint16_t port = cpu->dx.w; */  /* Port address in DX (unused) */
+	cpu->ax.w = 0xFFFF;  /* Return 0xFFFF for unconnected port */
+	cpu->ip += 1;
+}
+
+/* OUT DX, AL (0xEE) - Output byte to DX port */
+static inline void out_dx_al(X86Cpu *cpu)
+{
+	/* uint16_t port = cpu->dx.w; */  /* Port address in DX (unused) */
+	/* uint8_t value = cpu->ax.l; */  /* Value to output (unused) */
+	/* No-op: just advance IP */
+	cpu->ip += 1;
+}
+
+/* OUT DX, AX (0xEF) - Output word to DX port */
+static inline void out_dx_ax(X86Cpu *cpu)
+{
+	/* uint16_t port = cpu->dx.w; */  /* Port address in DX (unused) */
+	/* uint16_t value = cpu->ax.w; */  /* Value to output (unused) */
+	/* No-op: just advance IP */
+	cpu->ip += 1;
+}

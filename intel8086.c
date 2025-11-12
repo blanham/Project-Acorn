@@ -543,6 +543,26 @@ int do_op(X86Cpu *cpu)
 			jcxz(cpu);
 			break;
 
+		/* IN AL, imm8 (0xE4) */
+		case 0xE4:
+			in_al_imm(cpu);
+			break;
+
+		/* IN AX, imm8 (0xE5) */
+		case 0xE5:
+			in_ax_imm(cpu);
+			break;
+
+		/* OUT imm8, AL (0xE6) */
+		case 0xE6:
+			out_imm_al(cpu);
+			break;
+
+		/* OUT imm8, AX (0xE7) */
+		case 0xE7:
+			out_imm_ax(cpu);
+			break;
+
 		/* CALL near (0xE8) */
 		case 0xE8:
 			call_near(cpu);
@@ -561,6 +581,26 @@ int do_op(X86Cpu *cpu)
 		/* JMP short (0xEB) */
 		case 0xEB:
 			jmp_short(cpu);
+			break;
+
+		/* IN AL, DX (0xEC) */
+		case 0xEC:
+			in_al_dx(cpu);
+			break;
+
+		/* IN AX, DX (0xED) */
+		case 0xED:
+			in_ax_dx(cpu);
+			break;
+
+		/* OUT DX, AL (0xEE) */
+		case 0xEE:
+			out_dx_al(cpu);
+			break;
+
+		/* OUT DX, AX (0xEF) */
+		case 0xEF:
+			out_dx_ax(cpu);
 			break;
 
 		/* HLT (0xF4) - Halt */
