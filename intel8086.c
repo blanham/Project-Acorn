@@ -201,6 +201,11 @@ int do_op(X86Cpu *cpu)
 			pop_seg(cpu);
 			break;
 
+		/* ADC - Add with Carry (0x10-0x15) */
+		case 0x10 ... 0x15:
+			adc_op(cpu);
+			break;
+
 		/* PUSH SS (0x16) */
 		case 0x16:
 			push_seg(cpu);
@@ -209,6 +214,11 @@ int do_op(X86Cpu *cpu)
 		/* POP SS (0x17) */
 		case 0x17:
 			pop_seg(cpu);
+			break;
+
+		/* SBB - Subtract with Borrow (0x18-0x1D) */
+		case 0x18 ... 0x1D:
+			sbb_op(cpu);
 			break;
 
 		/* PUSH DS (0x1E) */
@@ -226,9 +236,19 @@ int do_op(X86Cpu *cpu)
 			and_op(cpu);
 			break;
 
+		/* DAA - Decimal Adjust after Addition (0x27) */
+		case 0x27:
+			daa(cpu);
+			break;
+
 		/* SUB - Subtract (0x28-0x2D) */
 		case 0x28 ... 0x2D:
 			sub_op(cpu);
+			break;
+
+		/* DAS - Decimal Adjust after Subtraction (0x2F) */
+		case 0x2F:
+			das(cpu);
 			break;
 
 		/* XOR - Logical XOR (0x30-0x35) */
@@ -236,9 +256,19 @@ int do_op(X86Cpu *cpu)
 			xor_op(cpu);
 			break;
 
+		/* AAA - ASCII Adjust after Addition (0x37) */
+		case 0x37:
+			aaa(cpu);
+			break;
+
 		/* CMP - Compare (0x38-0x3D) */
 		case 0x38 ... 0x3D:
 			cmp_op(cpu);
+			break;
+
+		/* AAS - ASCII Adjust after Subtraction (0x3F) */
+		case 0x3F:
+			aas(cpu);
 			break;
 
 		/* INC - Increment 16-bit register (0x40-0x47) */
@@ -281,9 +311,30 @@ int do_op(X86Cpu *cpu)
 			mov_modrm(cpu);
 			break;
 
+		/* MOV - Move to/from segment register (0x8C, 0x8E) */
+		case 0x8C:
+		case 0x8E:
+			mov_seg(cpu);
+			break;
+
+		/* LEA - Load Effective Address (0x8D) */
+		case 0x8D:
+			lea(cpu);
+			break;
+
 		/* XCHG AX with register / NOP (0x90-0x97) */
 		case 0x90 ... 0x97:
 			xchg_ax(cpu);
+			break;
+
+		/* CBW - Convert Byte to Word (0x98) */
+		case 0x98:
+			cbw(cpu);
+			break;
+
+		/* CWD - Convert Word to Doubleword (0x99) */
+		case 0x99:
+			cwd(cpu);
 			break;
 
 		/* CALL far (0x9A) - Call far procedure */
@@ -309,9 +360,39 @@ int do_op(X86Cpu *cpu)
 			lahf(cpu);
 			break;
 
+		/* MOV - Move to/from memory (direct) (0xA0-0xA3) */
+		case 0xA0 ... 0xA3:
+			mov_mem(cpu);
+			break;
+
+		/* MOVS - Move String (0xA4-0xA5) */
+		case 0xA4 ... 0xA5:
+			movs(cpu);
+			break;
+
+		/* CMPS - Compare String (0xA6-0xA7) */
+		case 0xA6 ... 0xA7:
+			cmps(cpu);
+			break;
+
 		/* TEST - Logical compare with immediate (0xA8-0xA9) */
 		case 0xA8 ... 0xA9:
 			test_op(cpu);
+			break;
+
+		/* STOS - Store String (0xAA-0xAB) */
+		case 0xAA ... 0xAB:
+			stos(cpu);
+			break;
+
+		/* LODS - Load String (0xAC-0xAD) */
+		case 0xAC ... 0xAD:
+			lods(cpu);
+			break;
+
+		/* SCAS - Scan String (0xAE-0xAF) */
+		case 0xAE ... 0xAF:
+			scas(cpu);
 			break;
 
 		/* MOV immediate to register (0xB0-0xBF) */
@@ -332,6 +413,16 @@ int do_op(X86Cpu *cpu)
 		/* RET far with pop (0xCA) */
 		case 0xCA:
 			ret_far_pop(cpu);
+			break;
+
+		/* LES - Load pointer to ES (0xC4) */
+		case 0xC4:
+			les(cpu);
+			break;
+
+		/* LDS - Load pointer to DS (0xC5) */
+		case 0xC5:
+			lds(cpu);
 			break;
 
 		/* RET far (0xCB) */
@@ -362,6 +453,16 @@ int do_op(X86Cpu *cpu)
 		/* Shift/Rotate operations (0xD0-0xD3) */
 		case 0xD0 ... 0xD3:
 			shift_rotate_op(cpu);
+			break;
+
+		/* AAM - ASCII Adjust after Multiplication (0xD4) */
+		case 0xD4:
+			aam(cpu);
+			break;
+
+		/* AAD - ASCII Adjust before Division (0xD5) */
+		case 0xD5:
+			aad(cpu);
 			break;
 
 		/* LOOPNZ/LOOPNE (0xE0) */
@@ -409,6 +510,11 @@ int do_op(X86Cpu *cpu)
 			hlt(cpu);
 			break;
 
+		/* Grp3 - TEST/NOT/NEG/MUL/IMUL/DIV/IDIV (0xF6-0xF7) */
+		case 0xF6 ... 0xF7:
+			grp3(cpu);
+			break;
+
 		/* CLI - Clear interrupt flag (0xFA) */
 		case 0xFA:
 			printf("%.2X CLI ", opcode);
@@ -429,6 +535,11 @@ int do_op(X86Cpu *cpu)
 		/* STD (0xFD) - Set direction flag */
 		case 0xFD:
 			std(cpu);
+			break;
+
+		/* Grp4/5 - INC/DEC/CALL/JMP (0xFE-0xFF) */
+		case 0xFE ... 0xFF:
+			grp4_5(cpu);
 			break;
 
 		/* Undefined opcode */

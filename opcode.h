@@ -1880,3 +1880,1077 @@ static inline void std(X86Cpu *cpu)
 	set_flag(cpu, FLAGS_DF);
 	cpu->ip++;
 }
+
+/* ============================================================================
+ * ADC - Add with Carry (0x10-0x15)
+ * ============================================================================ */
+static inline void adc_op(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode & 1) == 0;
+	uint16_t carry = (cpu->flags & FLAGS_CF) ? 1 : 0;
+
+	switch (opcode) {
+		case 0x10:  /* ADC r/m8, r8 */
+		case 0x11:  /* ADC r/m16, r16 */
+		case 0x12:  /* ADC r8, r/m8 */
+		case 0x13:  /* ADC r16, r/m16 */
+		{
+			ModRM modrm = decode_modrm(cpu, pc + 1);
+			uint16_t src, dst, result;
+
+			if (is_byte) {
+				if (opcode == 0x10 || opcode == 0x11) {
+					/* r/m is destination */
+					dst = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+						*get_reg8_ptr(cpu, modrm.rm);
+					src = *get_reg8_ptr(cpu, modrm.reg);
+				} else {
+					/* r is destination */
+					src = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+						*get_reg8_ptr(cpu, modrm.rm);
+					dst = *get_reg8_ptr(cpu, modrm.reg);
+				}
+			} else {
+				if (opcode == 0x11) {
+					dst = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+						*get_reg16_ptr(cpu, modrm.rm);
+					src = *get_reg16_ptr(cpu, modrm.reg);
+				} else {
+					src = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+						*get_reg16_ptr(cpu, modrm.rm);
+					dst = *get_reg16_ptr(cpu, modrm.reg);
+				}
+			}
+
+			result = dst + src + carry;
+
+			/* Update flags */
+			chk_carry_add(cpu, (uint32_t)dst + src + carry, is_byte);
+			chk_overflow_add(cpu, src + carry, dst, result, is_byte);
+			chk_aux_carry_add(cpu, (uint8_t)src + carry, (uint8_t)dst);
+			update_flags_szp(cpu, result, is_byte);
+
+			/* Write result */
+			if (is_byte) {
+				result &= 0xFF;
+				if (opcode == 0x10) {
+					if (modrm.is_memory)
+						cpu_write_byte(cpu, modrm.ea, result);
+					else
+						*get_reg8_ptr(cpu, modrm.rm) = result;
+				} else {
+					*get_reg8_ptr(cpu, modrm.reg) = result;
+				}
+			} else {
+				if (opcode == 0x11) {
+					if (modrm.is_memory)
+						cpu_write_word(cpu, modrm.ea, result);
+					else
+						*get_reg16_ptr(cpu, modrm.rm) = result;
+				} else {
+					*get_reg16_ptr(cpu, modrm.reg) = result;
+				}
+			}
+
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 0x14:  /* ADC AL, imm8 */
+		{
+			uint8_t imm = cpu_read_byte(cpu, pc + 1);
+			uint8_t result = cpu->ax.l + imm + carry;
+
+			chk_carry_add(cpu, (uint16_t)cpu->ax.l + imm + carry, true);
+			chk_overflow_add(cpu, imm + carry, cpu->ax.l, result, true);
+			chk_aux_carry_add(cpu, imm + carry, cpu->ax.l);
+			update_flags_szp(cpu, result, true);
+
+			cpu->ax.l = result;
+			cpu->ip += 2;
+			break;
+		}
+
+		case 0x15:  /* ADC AX, imm16 */
+		{
+			uint16_t imm = cpu_read_word(cpu, pc + 1);
+			uint32_t result = (uint32_t)cpu->ax.w + imm + carry;
+
+			chk_carry_add(cpu, result, false);
+			chk_overflow_add(cpu, imm + carry, cpu->ax.w, result, false);
+			chk_aux_carry_add(cpu, (uint8_t)(imm + carry), cpu->ax.l);
+			update_flags_szp(cpu, result, false);
+
+			cpu->ax.w = result & 0xFFFF;
+			cpu->ip += 3;
+			break;
+		}
+	}
+}
+
+/* ============================================================================
+ * SBB - Subtract with Borrow (0x18-0x1D)
+ * ============================================================================ */
+static inline void sbb_op(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode & 1) == 0;
+	uint16_t carry = (cpu->flags & FLAGS_CF) ? 1 : 0;
+
+	switch (opcode) {
+		case 0x18:  /* SBB r/m8, r8 */
+		case 0x19:  /* SBB r/m16, r16 */
+		case 0x1A:  /* SBB r8, r/m8 */
+		case 0x1B:  /* SBB r16, r/m16 */
+		{
+			ModRM modrm = decode_modrm(cpu, pc + 1);
+			uint16_t src, dst, result;
+
+			if (is_byte) {
+				if (opcode == 0x18) {
+					dst = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+						*get_reg8_ptr(cpu, modrm.rm);
+					src = *get_reg8_ptr(cpu, modrm.reg);
+				} else {
+					src = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+						*get_reg8_ptr(cpu, modrm.rm);
+					dst = *get_reg8_ptr(cpu, modrm.reg);
+				}
+			} else {
+				if (opcode == 0x19) {
+					dst = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+						*get_reg16_ptr(cpu, modrm.rm);
+					src = *get_reg16_ptr(cpu, modrm.reg);
+				} else {
+					src = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+						*get_reg16_ptr(cpu, modrm.rm);
+					dst = *get_reg16_ptr(cpu, modrm.reg);
+				}
+			}
+
+			result = dst - src - carry;
+
+			/* Update flags */
+			if (is_byte) {
+				cpu->flags = (cpu->flags & ~FLAGS_CF) |
+					((dst < (src + carry)) ? FLAGS_CF : 0);
+			} else {
+				cpu->flags = (cpu->flags & ~FLAGS_CF) |
+					((dst < (src + carry)) ? FLAGS_CF : 0);
+			}
+			chk_overflow_sub(cpu, src + carry, dst, result, is_byte);
+			chk_aux_carry_sub(cpu, (uint8_t)(src + carry), (uint8_t)dst);
+			update_flags_szp(cpu, result, is_byte);
+
+			/* Write result */
+			if (is_byte) {
+				result &= 0xFF;
+				if (opcode == 0x18) {
+					if (modrm.is_memory)
+						cpu_write_byte(cpu, modrm.ea, result);
+					else
+						*get_reg8_ptr(cpu, modrm.rm) = result;
+				} else {
+					*get_reg8_ptr(cpu, modrm.reg) = result;
+				}
+			} else {
+				if (opcode == 0x19) {
+					if (modrm.is_memory)
+						cpu_write_word(cpu, modrm.ea, result);
+					else
+						*get_reg16_ptr(cpu, modrm.rm) = result;
+				} else {
+					*get_reg16_ptr(cpu, modrm.reg) = result;
+				}
+			}
+
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 0x1C:  /* SBB AL, imm8 */
+		{
+			uint8_t imm = cpu_read_byte(cpu, pc + 1);
+			uint8_t result = cpu->ax.l - imm - carry;
+
+			cpu->flags = (cpu->flags & ~FLAGS_CF) |
+				((cpu->ax.l < (imm + carry)) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, imm + carry, cpu->ax.l, result, true);
+			chk_aux_carry_sub(cpu, imm + carry, cpu->ax.l);
+			update_flags_szp(cpu, result, true);
+
+			cpu->ax.l = result;
+			cpu->ip += 2;
+			break;
+		}
+
+		case 0x1D:  /* SBB AX, imm16 */
+		{
+			uint16_t imm = cpu_read_word(cpu, pc + 1);
+			uint16_t result = cpu->ax.w - imm - carry;
+
+			cpu->flags = (cpu->flags & ~FLAGS_CF) |
+				((cpu->ax.w < (imm + carry)) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, imm + carry, cpu->ax.w, result, false);
+			chk_aux_carry_sub(cpu, (uint8_t)(imm + carry), cpu->ax.l);
+			update_flags_szp(cpu, result, false);
+
+			cpu->ax.w = result;
+			cpu->ip += 3;
+			break;
+		}
+	}
+}
+
+/* ============================================================================
+ * DAA - Decimal Adjust after Addition (0x27)
+ * ============================================================================ */
+static inline void daa(X86Cpu *cpu)
+{
+	uint8_t old_al = cpu->ax.l;
+	bool old_cf = (cpu->flags & FLAGS_CF) != 0;
+
+	if (((old_al & 0x0F) > 9) || (cpu->flags & FLAGS_AF)) {
+		cpu->ax.l += 6;
+		set_flag(cpu, FLAGS_AF);
+	} else {
+		clear_flag(cpu, FLAGS_AF);
+	}
+
+	if ((old_al > 0x99) || old_cf) {
+		cpu->ax.l += 0x60;
+		set_flag(cpu, FLAGS_CF);
+	} else {
+		clear_flag(cpu, FLAGS_CF);
+	}
+
+	update_flags_szp(cpu, cpu->ax.l, true);
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * DAS - Decimal Adjust after Subtraction (0x2F)
+ * ============================================================================ */
+static inline void das(X86Cpu *cpu)
+{
+	uint8_t old_al = cpu->ax.l;
+	bool old_cf = (cpu->flags & FLAGS_CF) != 0;
+
+	if (((old_al & 0x0F) > 9) || (cpu->flags & FLAGS_AF)) {
+		cpu->ax.l -= 6;
+		set_flag(cpu, FLAGS_AF);
+	} else {
+		clear_flag(cpu, FLAGS_AF);
+	}
+
+	if ((old_al > 0x99) || old_cf) {
+		cpu->ax.l -= 0x60;
+		set_flag(cpu, FLAGS_CF);
+	} else {
+		clear_flag(cpu, FLAGS_CF);
+	}
+
+	update_flags_szp(cpu, cpu->ax.l, true);
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * AAA - ASCII Adjust after Addition (0x37)
+ * ============================================================================ */
+static inline void aaa(X86Cpu *cpu)
+{
+	if (((cpu->ax.l & 0x0F) > 9) || (cpu->flags & FLAGS_AF)) {
+		cpu->ax.l += 6;
+		cpu->ax.h += 1;
+		set_flag(cpu, FLAGS_AF);
+		set_flag(cpu, FLAGS_CF);
+	} else {
+		clear_flag(cpu, FLAGS_AF);
+		clear_flag(cpu, FLAGS_CF);
+	}
+
+	cpu->ax.l &= 0x0F;
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * AAS - ASCII Adjust after Subtraction (0x3F)
+ * ============================================================================ */
+static inline void aas(X86Cpu *cpu)
+{
+	if (((cpu->ax.l & 0x0F) > 9) || (cpu->flags & FLAGS_AF)) {
+		cpu->ax.l -= 6;
+		cpu->ax.h -= 1;
+		set_flag(cpu, FLAGS_AF);
+		set_flag(cpu, FLAGS_CF);
+	} else {
+		clear_flag(cpu, FLAGS_AF);
+		clear_flag(cpu, FLAGS_CF);
+	}
+
+	cpu->ax.l &= 0x0F;
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * AAM - ASCII Adjust after Multiplication (0xD4)
+ * ============================================================================ */
+static inline void aam(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t base = cpu_read_byte(cpu, pc + 1);
+
+	if (base == 0) {
+		/* Division by zero - should trigger interrupt 0 */
+		fprintf(stderr, "AAM: Division by zero\n");
+		cpu->running = 0;
+		return;
+	}
+
+	cpu->ax.h = cpu->ax.l / base;
+	cpu->ax.l = cpu->ax.l % base;
+
+	update_flags_szp(cpu, cpu->ax.l, true);
+	cpu->ip += 2;
+}
+
+/* ============================================================================
+ * AAD - ASCII Adjust before Division (0xD5)
+ * ============================================================================ */
+static inline void aad(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t base = cpu_read_byte(cpu, pc + 1);
+
+	cpu->ax.l = cpu->ax.h * base + cpu->ax.l;
+	cpu->ax.h = 0;
+
+	update_flags_szp(cpu, cpu->ax.l, true);
+	cpu->ip += 2;
+}
+
+/* ============================================================================
+ * CBW - Convert Byte to Word (0x98)
+ * ============================================================================ */
+static inline void cbw(X86Cpu *cpu)
+{
+	if (cpu->ax.l & 0x80) {
+		cpu->ax.h = 0xFF;
+	} else {
+		cpu->ax.h = 0;
+	}
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * CWD - Convert Word to Doubleword (0x99)
+ * ============================================================================ */
+static inline void cwd(X86Cpu *cpu)
+{
+	if (cpu->ax.w & 0x8000) {
+		cpu->dx.w = 0xFFFF;
+	} else {
+		cpu->dx.w = 0;
+	}
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * LEA - Load Effective Address (0x8D)
+ * ============================================================================ */
+static inline void lea(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	if (!modrm.is_memory) {
+		fprintf(stderr, "LEA: Invalid use with register operand\n");
+		cpu->running = 0;
+		return;
+	}
+
+	/* LEA loads the offset only, not the value */
+	*get_reg16_ptr(cpu, modrm.reg) = modrm.ea & 0xFFFF;
+	cpu->ip += modrm.length;
+}
+
+/* ============================================================================
+ * LDS - Load pointer to DS (0xC5)
+ * ============================================================================ */
+static inline void lds(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	if (!modrm.is_memory) {
+		fprintf(stderr, "LDS: Invalid use with register operand\n");
+		cpu->running = 0;
+		return;
+	}
+
+	uint16_t offset = cpu_read_word(cpu, modrm.ea);
+	uint16_t segment = cpu_read_word(cpu, modrm.ea + 2);
+
+	*get_reg16_ptr(cpu, modrm.reg) = offset;
+	cpu->ds = segment;
+
+	cpu->ip += modrm.length;
+}
+
+/* ============================================================================
+ * LES - Load pointer to ES (0xC4)
+ * ============================================================================ */
+static inline void les(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	if (!modrm.is_memory) {
+		fprintf(stderr, "LES: Invalid use with register operand\n");
+		cpu->running = 0;
+		return;
+	}
+
+	uint16_t offset = cpu_read_word(cpu, modrm.ea);
+	uint16_t segment = cpu_read_word(cpu, modrm.ea + 2);
+
+	*get_reg16_ptr(cpu, modrm.reg) = offset;
+	cpu->es = segment;
+
+	cpu->ip += modrm.length;
+}
+
+/* ============================================================================
+ * MOV - Move to/from segment registers (0x8C, 0x8E)
+ * ============================================================================ */
+static inline void mov_seg(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	uint16_t *seg_reg;
+	switch (modrm.reg) {
+		case 0: seg_reg = &cpu->es; break;
+		case 1: seg_reg = &cpu->cs; break;
+		case 2: seg_reg = &cpu->ss; break;
+		case 3: seg_reg = &cpu->ds; break;
+		default:
+			fprintf(stderr, "MOV: Invalid segment register %d\n", modrm.reg);
+			cpu->running = 0;
+			return;
+	}
+
+	if (opcode == 0x8C) {
+		/* MOV r/m16, Sreg */
+		if (modrm.is_memory) {
+			cpu_write_word(cpu, modrm.ea, *seg_reg);
+		} else {
+			*get_reg16_ptr(cpu, modrm.rm) = *seg_reg;
+		}
+	} else {
+		/* MOV Sreg, r/m16 */
+		uint16_t value;
+		if (modrm.is_memory) {
+			value = cpu_read_word(cpu, modrm.ea);
+		} else {
+			value = *get_reg16_ptr(cpu, modrm.rm);
+		}
+		*seg_reg = value;
+	}
+
+	cpu->ip += modrm.length;
+}
+
+/* ============================================================================
+ * MOV - Move to/from memory (direct addressing) (0xA0-0xA3)
+ * ============================================================================ */
+static inline void mov_mem(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint16_t offset = cpu_read_word(cpu, pc + 1);
+	uint32_t addr = (cpu->ds << 4) + offset;
+
+	switch (opcode) {
+		case 0xA0:  /* MOV AL, [offset] */
+			cpu->ax.l = cpu_read_byte(cpu, addr);
+			cpu->ip += 3;
+			break;
+
+		case 0xA1:  /* MOV AX, [offset] */
+			cpu->ax.w = cpu_read_word(cpu, addr);
+			cpu->ip += 3;
+			break;
+
+		case 0xA2:  /* MOV [offset], AL */
+			cpu_write_byte(cpu, addr, cpu->ax.l);
+			cpu->ip += 3;
+			break;
+
+		case 0xA3:  /* MOV [offset], AX */
+			cpu_write_word(cpu, addr, cpu->ax.w);
+			cpu->ip += 3;
+			break;
+	}
+}
+
+/* ============================================================================
+ * String Operations Helper
+ * ============================================================================ */
+static inline void adjust_si_di(X86Cpu *cpu, bool is_byte)
+{
+	int delta = is_byte ? 1 : 2;
+	if (cpu->flags & FLAGS_DF) {
+		cpu->si -= delta;
+		cpu->di -= delta;
+	} else {
+		cpu->si += delta;
+		cpu->di += delta;
+	}
+}
+
+/* ============================================================================
+ * MOVS - Move String (0xA4-0xA5)
+ * ============================================================================ */
+static inline void movs(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xA4);
+
+	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
+	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+
+	if (is_byte) {
+		uint8_t value = cpu_read_byte(cpu, src_addr);
+		cpu_write_byte(cpu, dst_addr, value);
+	} else {
+		uint16_t value = cpu_read_word(cpu, src_addr);
+		cpu_write_word(cpu, dst_addr, value);
+	}
+
+	adjust_si_di(cpu, is_byte);
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * CMPS - Compare String (0xA6-0xA7)
+ * ============================================================================ */
+static inline void cmps(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xA6);
+
+	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
+	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+
+	if (is_byte) {
+		uint8_t src = cpu_read_byte(cpu, src_addr);
+		uint8_t dst = cpu_read_byte(cpu, dst_addr);
+		uint8_t result = dst - src;
+
+		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+		chk_overflow_sub(cpu, src, dst, result, true);
+		chk_aux_carry_sub(cpu, src, dst);
+		update_flags_szp(cpu, result, true);
+	} else {
+		uint16_t src = cpu_read_word(cpu, src_addr);
+		uint16_t dst = cpu_read_word(cpu, dst_addr);
+		uint16_t result = dst - src;
+
+		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+		chk_overflow_sub(cpu, src, dst, result, false);
+		chk_aux_carry_sub(cpu, (uint8_t)src, (uint8_t)dst);
+		update_flags_szp(cpu, result, false);
+	}
+
+	adjust_si_di(cpu, is_byte);
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * SCAS - Scan String (0xAE-0xAF)
+ * ============================================================================ */
+static inline void scas(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xAE);
+
+	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+
+	if (is_byte) {
+		uint8_t dst = cpu_read_byte(cpu, dst_addr);
+		uint8_t result = cpu->ax.l - dst;
+
+		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.l < dst) ? FLAGS_CF : 0);
+		chk_overflow_sub(cpu, dst, cpu->ax.l, result, true);
+		chk_aux_carry_sub(cpu, dst, cpu->ax.l);
+		update_flags_szp(cpu, result, true);
+
+		cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+	} else {
+		uint16_t dst = cpu_read_word(cpu, dst_addr);
+		uint16_t result = cpu->ax.w - dst;
+
+		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.w < dst) ? FLAGS_CF : 0);
+		chk_overflow_sub(cpu, dst, cpu->ax.w, result, false);
+		chk_aux_carry_sub(cpu, (uint8_t)dst, cpu->ax.l);
+		update_flags_szp(cpu, result, false);
+
+		cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+	}
+
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * LODS - Load String (0xAC-0xAD)
+ * ============================================================================ */
+static inline void lods(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xAC);
+
+	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
+
+	if (is_byte) {
+		cpu->ax.l = cpu_read_byte(cpu, src_addr);
+		cpu->si += (cpu->flags & FLAGS_DF) ? -1 : 1;
+	} else {
+		cpu->ax.w = cpu_read_word(cpu, src_addr);
+		cpu->si += (cpu->flags & FLAGS_DF) ? -2 : 2;
+	}
+
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * STOS - Store String (0xAA-0xAB)
+ * ============================================================================ */
+static inline void stos(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xAA);
+
+	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+
+	if (is_byte) {
+		cpu_write_byte(cpu, dst_addr, cpu->ax.l);
+		cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+	} else {
+		cpu_write_word(cpu, dst_addr, cpu->ax.w);
+		cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+	}
+
+	cpu->ip++;
+}
+
+/* ============================================================================
+ * MUL/IMUL/DIV/IDIV and other Grp3 instructions (0xF6-0xF7)
+ * ============================================================================ */
+static inline void grp3(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xF6);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	uint16_t operand;
+	if (is_byte) {
+		operand = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+			*get_reg8_ptr(cpu, modrm.rm);
+	} else {
+		operand = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+			*get_reg16_ptr(cpu, modrm.rm);
+	}
+
+	switch (modrm.reg) {
+		case 0:  /* TEST r/m, imm */
+		{
+			uint16_t imm;
+			if (is_byte) {
+				imm = cpu_read_byte(cpu, pc + modrm.length);
+			} else {
+				imm = cpu_read_word(cpu, pc + modrm.length);
+			}
+			uint16_t result = operand & imm;
+			update_flags_logic(cpu, result, is_byte);
+			cpu->ip += modrm.length + (is_byte ? 1 : 2);
+			break;
+		}
+
+		case 2:  /* NOT r/m */
+		{
+			uint16_t result = ~operand;
+			if (is_byte) {
+				result &= 0xFF;
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 3:  /* NEG r/m */
+		{
+			uint16_t result = -operand;
+			if (is_byte) {
+				result &= 0xFF;
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((result != 0) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, operand, 0, result, true);
+				chk_aux_carry_sub(cpu, operand, 0);
+				update_flags_szp(cpu, result, true);
+
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((result != 0) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, operand, 0, result, false);
+				chk_aux_carry_sub(cpu, (uint8_t)operand, 0);
+				update_flags_szp(cpu, result, false);
+
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 4:  /* MUL r/m */
+		{
+			if (is_byte) {
+				uint16_t result = cpu->ax.l * operand;
+				cpu->ax.w = result;
+				if (cpu->ax.h == 0) {
+					clear_flag(cpu, FLAGS_CF);
+					clear_flag(cpu, FLAGS_OV);
+				} else {
+					set_flag(cpu, FLAGS_CF);
+					set_flag(cpu, FLAGS_OV);
+				}
+			} else {
+				uint32_t result = (uint32_t)cpu->ax.w * operand;
+				cpu->ax.w = result & 0xFFFF;
+				cpu->dx.w = (result >> 16) & 0xFFFF;
+				if (cpu->dx.w == 0) {
+					clear_flag(cpu, FLAGS_CF);
+					clear_flag(cpu, FLAGS_OV);
+				} else {
+					set_flag(cpu, FLAGS_CF);
+					set_flag(cpu, FLAGS_OV);
+				}
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 5:  /* IMUL r/m */
+		{
+			if (is_byte) {
+				int16_t result = (int8_t)cpu->ax.l * (int8_t)operand;
+				cpu->ax.w = result;
+				if ((int8_t)cpu->ax.h == 0 || (int8_t)cpu->ax.h == -1) {
+					clear_flag(cpu, FLAGS_CF);
+					clear_flag(cpu, FLAGS_OV);
+				} else {
+					set_flag(cpu, FLAGS_CF);
+					set_flag(cpu, FLAGS_OV);
+				}
+			} else {
+				int32_t result = (int16_t)cpu->ax.w * (int16_t)operand;
+				cpu->ax.w = result & 0xFFFF;
+				cpu->dx.w = (result >> 16) & 0xFFFF;
+				if ((int16_t)cpu->dx.w == 0 || (int16_t)cpu->dx.w == -1) {
+					clear_flag(cpu, FLAGS_CF);
+					clear_flag(cpu, FLAGS_OV);
+				} else {
+					set_flag(cpu, FLAGS_CF);
+					set_flag(cpu, FLAGS_OV);
+				}
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 6:  /* DIV r/m */
+		{
+			if (operand == 0) {
+				fprintf(stderr, "DIV: Division by zero\n");
+				cpu->running = 0;
+				return;
+			}
+
+			if (is_byte) {
+				uint16_t dividend = cpu->ax.w;
+				uint16_t quotient_check = dividend / operand;
+
+				if (quotient_check > 0xFF) {
+					fprintf(stderr, "DIV: Quotient overflow\n");
+					cpu->running = 0;
+					return;
+				}
+
+				cpu->ax.l = (uint8_t)quotient_check;
+				cpu->ax.h = (uint8_t)(dividend % operand);
+			} else {
+				uint32_t dividend = ((uint32_t)cpu->dx.w << 16) | cpu->ax.w;
+				uint32_t quotient_check = dividend / operand;
+
+				if (quotient_check > 0xFFFF) {
+					fprintf(stderr, "DIV: Quotient overflow\n");
+					cpu->running = 0;
+					return;
+				}
+
+				cpu->ax.w = (uint16_t)quotient_check;
+				cpu->dx.w = (uint16_t)(dividend % operand);
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 7:  /* IDIV r/m */
+		{
+			if (operand == 0) {
+				fprintf(stderr, "IDIV: Division by zero\n");
+				cpu->running = 0;
+				return;
+			}
+
+			if (is_byte) {
+				int16_t dividend = (int16_t)cpu->ax.w;
+				int8_t divisor = (int8_t)operand;
+				int16_t quotient_check = dividend / divisor;
+
+				if (quotient_check > 127 || quotient_check < -128) {
+					fprintf(stderr, "IDIV: Quotient overflow\n");
+					cpu->running = 0;
+					return;
+				}
+
+				cpu->ax.l = (uint8_t)(int8_t)quotient_check;
+				cpu->ax.h = (uint8_t)(int8_t)(dividend % divisor);
+			} else {
+				int32_t dividend = ((int32_t)cpu->dx.w << 16) | cpu->ax.w;
+				int16_t divisor = (int16_t)operand;
+				int32_t quotient_check = dividend / divisor;
+
+				if (quotient_check > 32767 || quotient_check < -32768) {
+					fprintf(stderr, "IDIV: Quotient overflow\n");
+					cpu->running = 0;
+					return;
+				}
+
+				cpu->ax.w = (uint16_t)(int16_t)quotient_check;
+				cpu->dx.w = (uint16_t)(int16_t)(dividend % divisor);
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		default:
+			fprintf(stderr, "Grp3: Invalid reg field %d\n", modrm.reg);
+			cpu->running = 0;
+			break;
+	}
+}
+
+/* ============================================================================
+ * INC/DEC/CALL/JMP with ModR/M (0xFE-0xFF)
+ * ============================================================================ */
+static inline void grp4_5(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0xFE);
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+
+	switch (modrm.reg) {
+		case 0:  /* INC r/m */
+		{
+			uint16_t operand, result;
+			if (is_byte) {
+				operand = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+					*get_reg8_ptr(cpu, modrm.rm);
+				result = operand + 1;
+				result &= 0xFF;
+
+				chk_overflow_add(cpu, 1, operand, result, true);
+				chk_aux_carry_add(cpu, 1, operand);
+				update_flags_szp(cpu, result, true);
+
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				operand = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+					*get_reg16_ptr(cpu, modrm.rm);
+				result = operand + 1;
+
+				chk_overflow_add(cpu, 1, operand, result, false);
+				chk_aux_carry_add(cpu, 1, (uint8_t)operand);
+				update_flags_szp(cpu, result, false);
+
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 1:  /* DEC r/m */
+		{
+			uint16_t operand, result;
+			if (is_byte) {
+				operand = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+					*get_reg8_ptr(cpu, modrm.rm);
+				result = operand - 1;
+				result &= 0xFF;
+
+				chk_overflow_sub(cpu, 1, operand, result, true);
+				chk_aux_carry_sub(cpu, 1, operand);
+				update_flags_szp(cpu, result, true);
+
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				operand = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+					*get_reg16_ptr(cpu, modrm.rm);
+				result = operand - 1;
+
+				chk_overflow_sub(cpu, 1, operand, result, false);
+				chk_aux_carry_sub(cpu, 1, (uint8_t)operand);
+				update_flags_szp(cpu, result, false);
+
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		case 2:  /* CALL r/m (near) */
+		{
+			if (is_byte) {
+				fprintf(stderr, "CALL: Invalid byte operand\n");
+				cpu->running = 0;
+				return;
+			}
+
+			uint16_t target;
+			if (modrm.is_memory) {
+				target = cpu_read_word(cpu, modrm.ea);
+			} else {
+				target = *get_reg16_ptr(cpu, modrm.rm);
+			}
+
+			/* Push return address */
+			push_word(cpu, cpu->ip + modrm.length);
+			cpu->ip = target;
+			break;
+		}
+
+		case 3:  /* CALL m16:16 (far) */
+		{
+			if (is_byte || !modrm.is_memory) {
+				fprintf(stderr, "CALL far: Invalid operand\n");
+				cpu->running = 0;
+				return;
+			}
+
+			uint16_t offset = cpu_read_word(cpu, modrm.ea);
+			uint16_t segment = cpu_read_word(cpu, modrm.ea + 2);
+
+			/* Push CS and IP */
+			push_word(cpu, cpu->cs);
+			push_word(cpu, cpu->ip + modrm.length);
+
+			cpu->ip = offset;
+			cpu->cs = segment;
+			break;
+		}
+
+		case 4:  /* JMP r/m (near) */
+		{
+			if (is_byte) {
+				fprintf(stderr, "JMP: Invalid byte operand\n");
+				cpu->running = 0;
+				return;
+			}
+
+			if (modrm.is_memory) {
+				cpu->ip = cpu_read_word(cpu, modrm.ea);
+			} else {
+				cpu->ip = *get_reg16_ptr(cpu, modrm.rm);
+			}
+			break;
+		}
+
+		case 5:  /* JMP m16:16 (far) */
+		{
+			if (is_byte || !modrm.is_memory) {
+				fprintf(stderr, "JMP far: Invalid operand\n");
+				cpu->running = 0;
+				return;
+			}
+
+			uint16_t offset = cpu_read_word(cpu, modrm.ea);
+			uint16_t segment = cpu_read_word(cpu, modrm.ea + 2);
+
+			cpu->ip = offset;
+			cpu->cs = segment;
+			break;
+		}
+
+		case 6:  /* PUSH r/m */
+		{
+			if (is_byte) {
+				fprintf(stderr, "PUSH: Invalid byte operand\n");
+				cpu->running = 0;
+				return;
+			}
+
+			uint16_t value;
+			if (modrm.is_memory) {
+				value = cpu_read_word(cpu, modrm.ea);
+			} else {
+				value = *get_reg16_ptr(cpu, modrm.rm);
+			}
+
+			push_word(cpu, value);
+			cpu->ip += modrm.length;
+			break;
+		}
+
+		default:
+			fprintf(stderr, "Grp4/5: Invalid reg field %d\n", modrm.reg);
+			cpu->running = 0;
+			break;
+	}
+}
