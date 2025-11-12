@@ -1,7 +1,12 @@
-#include "5150emu.h"
+/* This file is part of Project Acorn.
+ * Licensed under the University of Illinois/NCSA Open Source License.
+ * See LICENSE file in the project root for full license information.
+ */
+
 #include "opcode.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 
 //tracer enable/disable
@@ -80,6 +85,7 @@ void print_flags(X86Cpu *cpu)
     else printf("c");
 }
 
+/* Disabled - incomplete implementation
 //from GRP2, SHL w/ consant 1
 void SHL1(unsigned char tmp)
 {
@@ -95,15 +101,16 @@ void SHL1(unsigned char tmp)
 		//	if(CF^SF)
 			{
 		//		FLAGS |= 1<<11;
-			}	
+			}
 		//	break;
 		default:
 			printf("Missing SHL1 Arg!\n");
 			exit(1);
-		
+
 	}
 
 }
+*/
 
 
 

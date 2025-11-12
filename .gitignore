@@ -1,2 +1,21 @@
 *.o
 *.sw*
+
+# Meson build artifacts
+build/
+builddir/
+*.dmp
+
+# Old build artifacts
+B8086
+bpc
+
+# Binary files
+*.bin
+*.BIN
+*.tar.gz
+
+# Test files
+test
+new
+ram.dmp
