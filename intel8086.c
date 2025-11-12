@@ -442,6 +442,11 @@ int do_op(X86Cpu *cpu)
 			mov(cpu);
 			break;
 
+		/* Shift/Rotate with immediate count (0xC0-0xC1) */
+		case 0xC0 ... 0xC1:
+			shift_rotate_op(cpu);
+			break;
+
 		/* RET near with pop (0xC2) */
 		case 0xC2:
 			ret_near_pop(cpu);
