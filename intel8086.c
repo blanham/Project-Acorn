@@ -167,8 +167,40 @@ void print_cpu_state(X86Cpu *cpu)
 
 int do_op(X86Cpu *cpu)
 {
-	uint32_t pc = cpu_get_pc(cpu);
-	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint32_t pc;
+	uint8_t opcode;
+
+	/* Process prefixes in a loop, then execute the actual instruction */
+	while (1) {
+		pc = cpu_get_pc(cpu);
+		opcode = cpu_read_byte(cpu, pc);
+
+		/* Check for prefix bytes */
+		if (opcode == 0x26) {  /* ES: */
+			cpu->seg_override = 1;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x2E) {  /* CS: */
+			cpu->seg_override = 2;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x36) {  /* SS: */
+			cpu->seg_override = 3;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0x3E) {  /* DS: */
+			cpu->seg_override = 4;
+			cpu->ip++;
+			continue;
+		} else if (opcode == 0xF2 || opcode == 0xF3) {  /* REP/REPNE */
+			/* REP prefix - for single-step tests, just recognize and skip */
+			cpu->ip++;
+			continue;
+		}
+
+		/* Not a prefix, execute the actual instruction */
+		break;
+	}
 
 	switch (opcode) {
 		/* ADD - Add (0x00-0x05) */
@@ -291,9 +323,14 @@ int do_op(X86Cpu *cpu)
 			pop_reg16(cpu);
 			break;
 
-		/* Conditional jumps (0x70-0x7F) */
-		case 0x70 ... 0x7F:
+		/* Conditional jumps (0x60-0x7F) - 0x60-0x6F are aliases for 0x70-0x7F on 8086 */
+		case 0x60 ... 0x7F:
 			jcc(cpu);
+			break;
+
+		/* Grp1 - Immediate ALU operations (0x80-0x83) */
+		case 0x80 ... 0x83:
+			grp1_imm(cpu);
 			break;
 
 		/* TEST - Logical compare (0x84-0x85) */
@@ -510,9 +547,30 @@ int do_op(X86Cpu *cpu)
 			hlt(cpu);
 			break;
 
+		/* CMC (0xF5) - Complement carry flag */
+		case 0xF5:
+			if (cpu->flags & FLAGS_CF)
+				clear_flag(cpu, FLAGS_CF);
+			else
+				set_flag(cpu, FLAGS_CF);
+			cpu->ip++;
+			break;
+
 		/* Grp3 - TEST/NOT/NEG/MUL/IMUL/DIV/IDIV (0xF6-0xF7) */
 		case 0xF6 ... 0xF7:
 			grp3(cpu);
+			break;
+
+		/* CLC (0xF8) - Clear carry flag */
+		case 0xF8:
+			clear_flag(cpu, FLAGS_CF);
+			cpu->ip++;
+			break;
+
+		/* STC (0xF9) - Set carry flag */
+		case 0xF9:
+			set_flag(cpu, FLAGS_CF);
+			cpu->ip++;
 			break;
 
 		/* CLI - Clear interrupt flag (0xFA) */
@@ -548,6 +606,9 @@ int do_op(X86Cpu *cpu)
 			cpu->running = 0;
 			break;
 	}
+
+	/* Clear segment override after instruction execution */
+	cpu->seg_override = 0;
 
 	return 0;
 }

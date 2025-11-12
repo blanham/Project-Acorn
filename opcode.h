@@ -137,6 +137,13 @@ static inline uint32_t calc_ea(X86Cpu *cpu, uint8_t mod, uint8_t rm,
 			if (mod == 0) {
 				/* [direct address] - 16-bit displacement only */
 				ea = disp;
+				/* Apply segment override if present */
+				if (cpu->seg_override != 0) {
+					uint16_t seg = (cpu->seg_override == 1) ? cpu->es :
+					               (cpu->seg_override == 2) ? cpu->cs :
+					               (cpu->seg_override == 3) ? cpu->ss : cpu->ds;
+					return cpu_calc_addr(seg, ea & 0xFFFF);
+				}
 				return cpu_calc_addr(*default_seg, ea & 0xFFFF);
 			} else {
 				/* [BP + disp] */
@@ -158,8 +165,17 @@ static inline uint32_t calc_ea(X86Cpu *cpu, uint8_t mod, uint8_t rm,
 		ea += disp;
 	}
 
-	/* Mask to 16 bits and calculate physical address */
+	/* Mask to 16 bits and apply segment override if present */
 	ea &= 0xFFFF;
+
+	/* Apply segment override if set, otherwise use default segment */
+	if (cpu->seg_override != 0) {
+		uint16_t seg = (cpu->seg_override == 1) ? cpu->es :
+		               (cpu->seg_override == 2) ? cpu->cs :
+		               (cpu->seg_override == 3) ? cpu->ss : cpu->ds;
+		return cpu_calc_addr(seg, ea);
+	}
+
 	return cpu_calc_addr(*default_seg, ea);
 }
 
@@ -728,12 +744,12 @@ static inline void dec_reg16(X86Cpu *cpu)
 
 /* Logical Instructions */
 
-/* Update flags for logical operations (CF=0, OF=0, SF/ZF/PF set) */
+/* Update flags for logical operations (CF=0, OF=0, AF=0, SF/ZF/PF set) */
 static inline void update_flags_logic(X86Cpu *cpu, uint16_t result, bool is_byte)
 {
 	clear_flag(cpu, FLAGS_CF);
 	clear_flag(cpu, FLAGS_OV);
-	/* AF is undefined after logical operations, we'll leave it unchanged */
+	clear_flag(cpu, FLAGS_AF);  /* AF is cleared for logical operations */
 	update_flags_szp(cpu, result, is_byte);
 }
 
@@ -2577,13 +2593,13 @@ static inline void grp3(X86Cpu *cpu)
 		{
 			uint16_t imm;
 			if (is_byte) {
-				imm = cpu_read_byte(cpu, pc + modrm.length);
+				imm = cpu_read_byte(cpu, pc + 1 + modrm.length);
 			} else {
-				imm = cpu_read_word(cpu, pc + modrm.length);
+				imm = cpu_read_word(cpu, pc + 1 + modrm.length);
 			}
 			uint16_t result = operand & imm;
 			update_flags_logic(cpu, result, is_byte);
-			cpu->ip += modrm.length + (is_byte ? 1 : 2);
+			cpu->ip += 1 + modrm.length + (is_byte ? 1 : 2);
 			break;
 		}
 
@@ -2602,7 +2618,7 @@ static inline void grp3(X86Cpu *cpu)
 				else
 					*get_reg16_ptr(cpu, modrm.rm) = result;
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2631,7 +2647,7 @@ static inline void grp3(X86Cpu *cpu)
 				else
 					*get_reg16_ptr(cpu, modrm.rm) = result;
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2659,7 +2675,7 @@ static inline void grp3(X86Cpu *cpu)
 					set_flag(cpu, FLAGS_OV);
 				}
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2687,7 +2703,7 @@ static inline void grp3(X86Cpu *cpu)
 					set_flag(cpu, FLAGS_OV);
 				}
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2724,7 +2740,7 @@ static inline void grp3(X86Cpu *cpu)
 				cpu->ax.w = (uint16_t)quotient_check;
 				cpu->dx.w = (uint16_t)(dividend % operand);
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2763,7 +2779,7 @@ static inline void grp3(X86Cpu *cpu)
 				cpu->ax.w = (uint16_t)(int16_t)quotient_check;
 				cpu->dx.w = (uint16_t)(int16_t)(dividend % divisor);
 			}
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2953,4 +2969,252 @@ static inline void grp4_5(X86Cpu *cpu)
 			cpu->running = 0;
 			break;
 	}
+}
+
+/* ============================================================================
+ * Group 1 Immediate ALU operations (0x80-0x83)
+ * ADD/OR/ADC/SBB/AND/SUB/XOR/CMP with immediate operand
+ * ============================================================================ */
+static inline void grp1_imm(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	bool is_byte = (opcode == 0x80 || opcode == 0x82);  /* 0x80/0x82 = byte, 0x81 = word, 0x83 = sign-extended byte */
+	bool is_sign_extend = (opcode == 0x83);  /* 0x83 = sign-extend byte to word */
+
+	ModRM modrm = decode_modrm(cpu, pc + 1);
+	uint16_t operand, imm, result;
+	uint8_t imm_size;
+
+	/* Read the r/m operand */
+	if (is_byte && !is_sign_extend) {
+		operand = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
+		          *get_reg8_ptr(cpu, modrm.rm);
+		imm = cpu_read_byte(cpu, pc + 1 + modrm.length);
+		imm_size = 1;
+	} else {
+		operand = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
+		          *get_reg16_ptr(cpu, modrm.rm);
+		if (is_sign_extend) {
+			/* Sign-extend byte immediate to word */
+			imm = (uint16_t)(int16_t)(int8_t)cpu_read_byte(cpu, pc + 1 + modrm.length);
+			imm_size = 1;
+		} else {
+			imm = cpu_read_word(cpu, pc + 1 + modrm.length);
+			imm_size = 2;
+		}
+	}
+
+	/* Perform the operation based on the reg field */
+	switch (modrm.reg) {
+		case 0:  /* ADD */
+			result = operand + imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				chk_carry_add(cpu, result, true);
+				chk_overflow_add(cpu, imm, operand, result, true);
+				chk_aux_carry_add(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				chk_carry_add(cpu, result, false);
+				chk_overflow_add(cpu, imm, operand, result, false);
+				chk_aux_carry_add(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+
+		case 1:  /* OR */
+			result = operand | imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+
+		case 2:  /* ADC */
+		{
+			uint8_t carry = (cpu->flags & FLAGS_CF) ? 1 : 0;
+			result = operand + imm + carry;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				chk_carry_add(cpu, operand + imm + carry, true);
+				chk_overflow_add(cpu, imm, operand, result, true);
+				chk_aux_carry_add(cpu, (imm & 0xFF) + carry, operand & 0xFF);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				chk_carry_add(cpu, operand + imm + carry, false);
+				chk_overflow_add(cpu, imm, operand, result, false);
+				chk_aux_carry_add(cpu, (imm & 0xFF) + carry, operand & 0xFF);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+		}
+
+		case 3:  /* SBB */
+		{
+			uint8_t carry = (cpu->flags & FLAGS_CF) ? 1 : 0;
+			result = operand - imm - carry;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				if ((operand < (imm + carry)) || ((operand == imm) && carry))
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, true);
+				chk_aux_carry_sub(cpu, (imm & 0xFF) + carry, operand & 0xFF);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				if ((operand < (imm + carry)) || ((operand == imm) && carry))
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, false);
+				chk_aux_carry_sub(cpu, (imm & 0xFF) + carry, operand & 0xFF);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+		}
+
+		case 4:  /* AND */
+			result = operand & imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+
+		case 5:  /* SUB */
+			result = operand - imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				if (operand < imm)
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, true);
+				chk_aux_carry_sub(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				if (operand < imm)
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, false);
+				chk_aux_carry_sub(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+
+		case 6:  /* XOR */
+			result = operand ^ imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, true);
+				if (modrm.is_memory)
+					cpu_write_byte(cpu, modrm.ea, result);
+				else
+					*get_reg8_ptr(cpu, modrm.rm) = result;
+			} else {
+				clear_flag(cpu, FLAGS_CF);
+				clear_flag(cpu, FLAGS_OV);
+				update_flags_szp(cpu, result, false);
+				if (modrm.is_memory)
+					cpu_write_word(cpu, modrm.ea, result);
+				else
+					*get_reg16_ptr(cpu, modrm.rm) = result;
+			}
+			break;
+
+		case 7:  /* CMP */
+			result = operand - imm;
+			if (is_byte && !is_sign_extend) {
+				result &= 0xFF;
+				if (operand < imm)
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, true);
+				chk_aux_carry_sub(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, true);
+			} else {
+				if (operand < imm)
+					set_flag(cpu, FLAGS_CF);
+				else
+					clear_flag(cpu, FLAGS_CF);
+				chk_overflow_sub(cpu, imm, operand, result, false);
+				chk_aux_carry_sub(cpu, imm & 0xFF, operand & 0xFF);
+				update_flags_szp(cpu, result, false);
+			}
+			/* CMP doesn't write back the result */
+			break;
+
+		default:
+			fprintf(stderr, "Grp1: Invalid reg field %d\n", modrm.reg);
+			cpu->running = 0;
+			return;
+	}
+
+	cpu->ip += 1 + modrm.length + imm_size;
 }
