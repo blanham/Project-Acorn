@@ -1237,6 +1237,325 @@ static inline void shift_rotate_op(X86Cpu *cpu)
 	cpu->ip += 1 + modrm.length;
 }
 
+/* Stack Operations */
+
+/* Push word onto stack */
+static inline void push_word(X86Cpu *cpu, uint16_t value)
+{
+	cpu->sp -= 2;
+	uint32_t addr = cpu_calc_addr(cpu->ss, cpu->sp);
+	cpu_write_word(cpu, addr, value);
+}
+
+/* Pop word from stack */
+static inline uint16_t pop_word(X86Cpu *cpu)
+{
+	uint32_t addr = cpu_calc_addr(cpu->ss, cpu->sp);
+	uint16_t value = cpu_read_word(cpu, addr);
+	cpu->sp += 2;
+	return value;
+}
+
+/* PUSH r16 (0x50-0x57) - Push 16-bit register */
+static inline void push_reg16(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint8_t reg = opcode & 0x07;
+	uint16_t *reg_ptr = get_reg16_ptr(cpu, reg);
+	push_word(cpu, *reg_ptr);
+	cpu->ip++;
+}
+
+/* POP r16 (0x58-0x5F) - Pop to 16-bit register */
+static inline void pop_reg16(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint8_t reg = opcode & 0x07;
+	uint16_t *reg_ptr = get_reg16_ptr(cpu, reg);
+	*reg_ptr = pop_word(cpu);
+	cpu->ip++;
+}
+
+/* PUSH segment register */
+static inline void push_seg(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint16_t value;
+
+	switch (opcode) {
+		case 0x06:  /* PUSH ES */
+			value = cpu->es;
+			break;
+		case 0x0E:  /* PUSH CS */
+			value = cpu->cs;
+			break;
+		case 0x16:  /* PUSH SS */
+			value = cpu->ss;
+			break;
+		case 0x1E:  /* PUSH DS */
+			value = cpu->ds;
+			break;
+		default:
+			fprintf(stderr, "ERROR: Invalid PUSH segment opcode 0x%02X\n", opcode);
+			cpu->running = 0;
+			return;
+	}
+
+	push_word(cpu, value);
+	cpu->ip++;
+}
+
+/* POP segment register */
+static inline void pop_seg(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t opcode = cpu_read_byte(cpu, pc);
+	uint16_t value = pop_word(cpu);
+
+	switch (opcode) {
+		case 0x07:  /* POP ES */
+			cpu->es = value;
+			break;
+		case 0x0F:  /* POP CS (not recommended but valid) */
+			cpu->cs = value;
+			break;
+		case 0x17:  /* POP SS */
+			cpu->ss = value;
+			break;
+		case 0x1F:  /* POP DS */
+			cpu->ds = value;
+			break;
+		default:
+			fprintf(stderr, "ERROR: Invalid POP segment opcode 0x%02X\n", opcode);
+			cpu->running = 0;
+			return;
+	}
+
+	cpu->ip++;
+}
+
+/* PUSHF (0x9C) - Push flags register */
+static inline void pushf(X86Cpu *cpu)
+{
+	push_word(cpu, cpu->flags);
+	cpu->ip++;
+}
+
+/* POPF (0x9D) - Pop flags register */
+static inline void popf(X86Cpu *cpu)
+{
+	cpu->flags = pop_word(cpu);
+	cpu->ip++;
+}
+
+/* Control Flow Instructions */
+
+/* CALL near (0xE8) - Call procedure (relative) */
+static inline void call_near(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int16_t offset = (int16_t)cpu_read_word(cpu, pc + 1);
+
+	/* Push return address (IP after this instruction) */
+	push_word(cpu, cpu->ip + 3);
+
+	/* Jump to target */
+	cpu->ip += offset + 3;
+}
+
+/* CALL far (0x9A) - Call far procedure */
+static inline void call_far(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint16_t new_ip = cpu_read_word(cpu, pc + 1);
+	uint16_t new_cs = cpu_read_word(cpu, pc + 3);
+
+	/* Push CS and IP */
+	push_word(cpu, cpu->cs);
+	push_word(cpu, cpu->ip + 5);
+
+	/* Jump to target */
+	cpu->cs = new_cs;
+	cpu->ip = new_ip;
+}
+
+/* RET near (0xC3) - Return from procedure */
+static inline void ret_near(X86Cpu *cpu)
+{
+	cpu->ip = pop_word(cpu);
+}
+
+/* RET near with pop (0xC2) - Return and pop bytes */
+static inline void ret_near_pop(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint16_t pop_bytes = cpu_read_word(cpu, pc + 1);
+
+	cpu->ip = pop_word(cpu);
+	cpu->sp += pop_bytes;
+}
+
+/* RET far (0xCB) - Return far from procedure */
+static inline void ret_far(X86Cpu *cpu)
+{
+	cpu->ip = pop_word(cpu);
+	cpu->cs = pop_word(cpu);
+}
+
+/* RET far with pop (0xCA) - Return far and pop bytes */
+static inline void ret_far_pop(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint16_t pop_bytes = cpu_read_word(cpu, pc + 1);
+
+	cpu->ip = pop_word(cpu);
+	cpu->cs = pop_word(cpu);
+	cpu->sp += pop_bytes;
+}
+
+/* INT (0xCD) - Software interrupt */
+static inline void int_op(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	uint8_t vector = cpu_read_byte(cpu, pc + 1);
+
+	/* Push flags, CS, and IP */
+	push_word(cpu, cpu->flags);
+	push_word(cpu, cpu->cs);
+	push_word(cpu, cpu->ip + 2);
+
+	/* Clear interrupt and trap flags */
+	clear_flag(cpu, FLAGS_INT);
+	clear_flag(cpu, FLAGS_TF);
+
+	/* Load interrupt vector (vector * 4 gives address in IVT) */
+	uint32_t ivt_addr = vector * 4;
+	cpu->ip = cpu_read_word(cpu, ivt_addr);
+	cpu->cs = cpu_read_word(cpu, ivt_addr + 2);
+}
+
+/* INT 3 (0xCC) - Breakpoint interrupt */
+static inline void int3(X86Cpu *cpu)
+{
+	/* Push flags, CS, and IP */
+	push_word(cpu, cpu->flags);
+	push_word(cpu, cpu->cs);
+	push_word(cpu, cpu->ip + 1);
+
+	/* Clear interrupt and trap flags */
+	clear_flag(cpu, FLAGS_INT);
+	clear_flag(cpu, FLAGS_TF);
+
+	/* Load interrupt vector 3 */
+	uint32_t ivt_addr = 3 * 4;
+	cpu->ip = cpu_read_word(cpu, ivt_addr);
+	cpu->cs = cpu_read_word(cpu, ivt_addr + 2);
+}
+
+/* INTO (0xCE) - Interrupt on overflow */
+static inline void into(X86Cpu *cpu)
+{
+	if (FLAG_TST(FLAGS_OV)) {
+		/* Push flags, CS, and IP */
+		push_word(cpu, cpu->flags);
+		push_word(cpu, cpu->cs);
+		push_word(cpu, cpu->ip + 1);
+
+		/* Clear interrupt and trap flags */
+		clear_flag(cpu, FLAGS_INT);
+		clear_flag(cpu, FLAGS_TF);
+
+		/* Load interrupt vector 4 */
+		uint32_t ivt_addr = 4 * 4;
+		cpu->ip = cpu_read_word(cpu, ivt_addr);
+		cpu->cs = cpu_read_word(cpu, ivt_addr + 2);
+	} else {
+		cpu->ip++;
+	}
+}
+
+/* IRET (0xCF) - Return from interrupt */
+static inline void iret(X86Cpu *cpu)
+{
+	cpu->ip = pop_word(cpu);
+	cpu->cs = pop_word(cpu);
+	cpu->flags = pop_word(cpu);
+}
+
+/* JMP short (0xEB) - Jump short (8-bit displacement) */
+static inline void jmp_short(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int8_t displacement = (int8_t)cpu_read_byte(cpu, pc + 1);
+	cpu->ip += displacement + 2;
+}
+
+/* JMP near (0xE9) - Jump near (16-bit displacement) */
+static inline void jmp_near(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int16_t displacement = (int16_t)cpu_read_word(cpu, pc + 1);
+	cpu->ip += displacement + 3;
+}
+
+/* LOOP (0xE2) - Loop while CX != 0 */
+static inline void loop_op(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int8_t displacement = (int8_t)cpu_read_byte(cpu, pc + 1);
+
+	cpu->cx.w--;
+	if (cpu->cx.w != 0) {
+		cpu->ip += displacement + 2;
+	} else {
+		cpu->ip += 2;
+	}
+}
+
+/* LOOPZ/LOOPE (0xE1) - Loop while zero/equal */
+static inline void loopz(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int8_t displacement = (int8_t)cpu_read_byte(cpu, pc + 1);
+
+	cpu->cx.w--;
+	if (cpu->cx.w != 0 && FLAG_TST(FLAGS_ZF)) {
+		cpu->ip += displacement + 2;
+	} else {
+		cpu->ip += 2;
+	}
+}
+
+/* LOOPNZ/LOOPNE (0xE0) - Loop while not zero/not equal */
+static inline void loopnz(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int8_t displacement = (int8_t)cpu_read_byte(cpu, pc + 1);
+
+	cpu->cx.w--;
+	if (cpu->cx.w != 0 && !FLAG_TST(FLAGS_ZF)) {
+		cpu->ip += displacement + 2;
+	} else {
+		cpu->ip += 2;
+	}
+}
+
+/* JCXZ (0xE3) - Jump if CX is zero */
+static inline void jcxz(X86Cpu *cpu)
+{
+	uint32_t pc = cpu_get_pc(cpu);
+	int8_t displacement = (int8_t)cpu_read_byte(cpu, pc + 1);
+
+	if (cpu->cx.w == 0) {
+		cpu->ip += displacement + 2;
+	} else {
+		cpu->ip += 2;
+	}
+}
+
 /* Conditional jump instructions (0x70 - 0x7F) */
 static inline void jcc(X86Cpu *cpu)
 {

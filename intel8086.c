@@ -176,9 +176,49 @@ int do_op(X86Cpu *cpu)
 			add_op(cpu);
 			break;
 
+		/* PUSH ES (0x06) */
+		case 0x06:
+			push_seg(cpu);
+			break;
+
+		/* POP ES (0x07) */
+		case 0x07:
+			pop_seg(cpu);
+			break;
+
 		/* OR - Logical OR (0x08-0x0D) */
 		case 0x08 ... 0x0D:
 			or_op(cpu);
+			break;
+
+		/* PUSH CS (0x0E) */
+		case 0x0E:
+			push_seg(cpu);
+			break;
+
+		/* POP CS (0x0F) - Undocumented but valid */
+		case 0x0F:
+			pop_seg(cpu);
+			break;
+
+		/* PUSH SS (0x16) */
+		case 0x16:
+			push_seg(cpu);
+			break;
+
+		/* POP SS (0x17) */
+		case 0x17:
+			pop_seg(cpu);
+			break;
+
+		/* PUSH DS (0x1E) */
+		case 0x1E:
+			push_seg(cpu);
+			break;
+
+		/* POP DS (0x1F) */
+		case 0x1F:
+			pop_seg(cpu);
 			break;
 
 		/* AND - Logical AND (0x20-0x25) */
@@ -211,6 +251,16 @@ int do_op(X86Cpu *cpu)
 			dec_reg16(cpu);
 			break;
 
+		/* PUSH r16 (0x50-0x57) - Push 16-bit register */
+		case 0x50 ... 0x57:
+			push_reg16(cpu);
+			break;
+
+		/* POP r16 (0x58-0x5F) - Pop to 16-bit register */
+		case 0x58 ... 0x5F:
+			pop_reg16(cpu);
+			break;
+
 		/* Conditional jumps (0x70-0x7F) */
 		case 0x70 ... 0x7F:
 			jcc(cpu);
@@ -219,6 +269,21 @@ int do_op(X86Cpu *cpu)
 		/* TEST - Logical compare (0x84-0x85) */
 		case 0x84 ... 0x85:
 			test_op(cpu);
+			break;
+
+		/* CALL far (0x9A) - Call far procedure */
+		case 0x9A:
+			call_far(cpu);
+			break;
+
+		/* PUSHF (0x9C) - Push flags register */
+		case 0x9C:
+			pushf(cpu);
+			break;
+
+		/* POPF (0x9D) - Pop flags register */
+		case 0x9D:
+			popf(cpu);
 			break;
 
 		/* Flag manipulation */
@@ -239,14 +304,89 @@ int do_op(X86Cpu *cpu)
 			mov(cpu);
 			break;
 
+		/* RET near with pop (0xC2) */
+		case 0xC2:
+			ret_near_pop(cpu);
+			break;
+
+		/* RET near (0xC3) */
+		case 0xC3:
+			ret_near(cpu);
+			break;
+
+		/* RET far with pop (0xCA) */
+		case 0xCA:
+			ret_far_pop(cpu);
+			break;
+
+		/* RET far (0xCB) */
+		case 0xCB:
+			ret_far(cpu);
+			break;
+
+		/* INT 3 (0xCC) - Breakpoint */
+		case 0xCC:
+			int3(cpu);
+			break;
+
+		/* INT (0xCD) - Software interrupt */
+		case 0xCD:
+			int_op(cpu);
+			break;
+
+		/* INTO (0xCE) - Interrupt on overflow */
+		case 0xCE:
+			into(cpu);
+			break;
+
+		/* IRET (0xCF) - Return from interrupt */
+		case 0xCF:
+			iret(cpu);
+			break;
+
 		/* Shift/Rotate operations (0xD0-0xD3) */
 		case 0xD0 ... 0xD3:
 			shift_rotate_op(cpu);
 			break;
 
+		/* LOOPNZ/LOOPNE (0xE0) */
+		case 0xE0:
+			loopnz(cpu);
+			break;
+
+		/* LOOPZ/LOOPE (0xE1) */
+		case 0xE1:
+			loopz(cpu);
+			break;
+
+		/* LOOP (0xE2) */
+		case 0xE2:
+			loop_op(cpu);
+			break;
+
+		/* JCXZ (0xE3) */
+		case 0xE3:
+			jcxz(cpu);
+			break;
+
+		/* CALL near (0xE8) */
+		case 0xE8:
+			call_near(cpu);
+			break;
+
+		/* JMP near (0xE9) */
+		case 0xE9:
+			jmp_near(cpu);
+			break;
+
 		/* Jump far direct (0xEA) */
 		case 0xEA:
 			jmpf(cpu);
+			break;
+
+		/* JMP short (0xEB) */
+		case 0xEB:
+			jmp_short(cpu);
 			break;
 
 		/* CLI - Clear interrupt flag (0xFA) */
