@@ -171,9 +171,54 @@ int do_op(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 
 	switch (opcode) {
+		/* ADD - Add (0x00-0x05) */
+		case 0x00 ... 0x05:
+			add_op(cpu);
+			break;
+
+		/* OR - Logical OR (0x08-0x0D) */
+		case 0x08 ... 0x0D:
+			or_op(cpu);
+			break;
+
+		/* AND - Logical AND (0x20-0x25) */
+		case 0x20 ... 0x25:
+			and_op(cpu);
+			break;
+
+		/* SUB - Subtract (0x28-0x2D) */
+		case 0x28 ... 0x2D:
+			sub_op(cpu);
+			break;
+
+		/* XOR - Logical XOR (0x30-0x35) */
+		case 0x30 ... 0x35:
+			xor_op(cpu);
+			break;
+
+		/* CMP - Compare (0x38-0x3D) */
+		case 0x38 ... 0x3D:
+			cmp_op(cpu);
+			break;
+
+		/* INC - Increment 16-bit register (0x40-0x47) */
+		case 0x40 ... 0x47:
+			inc_reg16(cpu);
+			break;
+
+		/* DEC - Decrement 16-bit register (0x48-0x4F) */
+		case 0x48 ... 0x4F:
+			dec_reg16(cpu);
+			break;
+
 		/* Conditional jumps (0x70-0x7F) */
 		case 0x70 ... 0x7F:
 			jcc(cpu);
+			break;
+
+		/* TEST - Logical compare (0x84-0x85) */
+		case 0x84 ... 0x85:
+			test_op(cpu);
 			break;
 
 		/* Flag manipulation */
@@ -184,9 +229,19 @@ int do_op(X86Cpu *cpu)
 			lahf(cpu);
 			break;
 
+		/* TEST - Logical compare with immediate (0xA8-0xA9) */
+		case 0xA8 ... 0xA9:
+			test_op(cpu);
+			break;
+
 		/* MOV immediate to register (0xB0-0xBF) */
 		case 0xB0 ... 0xBF:
 			mov(cpu);
+			break;
+
+		/* Shift/Rotate operations (0xD0-0xD3) */
+		case 0xD0 ... 0xD3:
+			shift_rotate_op(cpu);
 			break;
 
 		/* Jump far direct (0xEA) */
