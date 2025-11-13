@@ -2549,18 +2549,39 @@ static inline void movs(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xA4);
 
-	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
-	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+	/* Handle REP prefix */
+	if (cpu->rep_prefix == 0xF3) {  /* REP */
+		while (cpu->cx.w != 0) {
+			uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+			uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-	if (is_byte) {
-		uint8_t value = cpu_read_byte(cpu, src_addr);
-		cpu_write_byte(cpu, dst_addr, value);
+			if (is_byte) {
+				uint8_t value = cpu_read_byte(cpu, src_addr);
+				cpu_write_byte(cpu, dst_addr, value);
+			} else {
+				uint16_t value = cpu_read_word(cpu, src_addr);
+				cpu_write_word(cpu, dst_addr, value);
+			}
+
+			adjust_si_di(cpu, is_byte);
+			cpu->cx.w--;
+		}
 	} else {
-		uint16_t value = cpu_read_word(cpu, src_addr);
-		cpu_write_word(cpu, dst_addr, value);
+		/* No REP prefix - single operation */
+		uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+		uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
+
+		if (is_byte) {
+			uint8_t value = cpu_read_byte(cpu, src_addr);
+			cpu_write_byte(cpu, dst_addr, value);
+		} else {
+			uint16_t value = cpu_read_word(cpu, src_addr);
+			cpu_write_word(cpu, dst_addr, value);
+		}
+
+		adjust_si_di(cpu, is_byte);
 	}
 
-	adjust_si_di(cpu, is_byte);
 	cpu->ip++;
 }
 
@@ -2573,8 +2594,8 @@ static inline void cmps(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xA6);
 
-	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
-	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+	uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
 	if (is_byte) {
 		uint8_t src = cpu_read_byte(cpu, src_addr);
@@ -2609,7 +2630,7 @@ static inline void scas(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAE);
 
-	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
 	if (is_byte) {
 		uint8_t dst = cpu_read_byte(cpu, dst_addr);
@@ -2645,7 +2666,7 @@ static inline void lods(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAC);
 
-	uint32_t src_addr = (cpu->ds << 4) + cpu->si;
+	uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
 
 	if (is_byte) {
 		cpu->ax.l = cpu_read_byte(cpu, src_addr);
@@ -2667,7 +2688,7 @@ static inline void stos(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAA);
 
-	uint32_t dst_addr = (cpu->es << 4) + cpu->di;
+	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
 	if (is_byte) {
 		cpu_write_byte(cpu, dst_addr, cpu->ax.l);

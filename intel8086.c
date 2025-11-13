@@ -197,7 +197,7 @@ int do_op(X86Cpu *cpu)
 			cpu->ip++;
 			continue;
 		} else if (opcode == 0xF2 || opcode == 0xF3) {  /* REP/REPNE */
-			/* REP prefix - for single-step tests, just recognize and skip */
+			cpu->rep_prefix = opcode;
 			cpu->ip++;
 			continue;
 		}
@@ -705,8 +705,9 @@ int do_op(X86Cpu *cpu)
 			break;
 	}
 
-	/* Clear segment override after instruction execution */
+	/* Clear segment override and REP prefix after instruction execution */
 	cpu->seg_override = 0;
+	cpu->rep_prefix = 0;
 
 	return 0;
 }

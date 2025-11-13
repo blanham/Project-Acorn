@@ -44,6 +44,9 @@ typedef struct {
 	/* Segment override prefix state */
 	uint8_t seg_override;  /* 0=none, 1=ES, 2=CS, 3=SS, 4=DS */
 
+	/* REP prefix state */
+	uint8_t rep_prefix;    /* 0=none, 0xF2=REPNE/REPNZ, 0xF3=REP/REPE/REPZ */
+
 	/* Emulator state */
 	int cycles;
 	int running;
