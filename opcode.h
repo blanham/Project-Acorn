@@ -413,7 +413,8 @@ static inline void add_op(X86Cpu *cpu)
 	if (opcode <= 0x03) {
 		/* ADD with ModR/M */
 		ModRM modrm = decode_modrm(cpu, pc + 1);
-		uint16_t src, dst, result;
+		uint16_t src, dst;
+		uint32_t result;
 
 		if (is_byte) {
 			if (direction) {
@@ -422,7 +423,7 @@ static inline void add_op(X86Cpu *cpu)
 				dst = *reg_ptr;
 				src = modrm.is_memory ? cpu_read_byte(cpu, modrm.ea) :
 				      *get_reg8_ptr(cpu, modrm.rm);
-				result = dst + src;
+				result = (uint32_t)dst + (uint32_t)src;
 				*reg_ptr = result & 0xFF;
 			} else {
 				/* r/m = r/m + reg */
@@ -430,12 +431,12 @@ static inline void add_op(X86Cpu *cpu)
 				src = *reg_ptr;
 				if (modrm.is_memory) {
 					dst = cpu_read_byte(cpu, modrm.ea);
-					result = dst + src;
+					result = (uint32_t)dst + (uint32_t)src;
 					cpu_write_byte(cpu, modrm.ea, result & 0xFF);
 				} else {
 					uint8_t *rm_ptr = get_reg8_ptr(cpu, modrm.rm);
 					dst = *rm_ptr;
-					result = dst + src;
+					result = (uint32_t)dst + (uint32_t)src;
 					*rm_ptr = result & 0xFF;
 				}
 			}
@@ -446,21 +447,21 @@ static inline void add_op(X86Cpu *cpu)
 				dst = *reg_ptr;
 				src = modrm.is_memory ? cpu_read_word(cpu, modrm.ea) :
 				      *get_reg16_ptr(cpu, modrm.rm);
-				result = dst + src;
-				*reg_ptr = result;
+				result = (uint32_t)dst + (uint32_t)src;
+				*reg_ptr = result & 0xFFFF;
 			} else {
 				/* r/m = r/m + reg */
 				uint16_t *reg_ptr = get_reg16_ptr(cpu, modrm.reg);
 				src = *reg_ptr;
 				if (modrm.is_memory) {
 					dst = cpu_read_word(cpu, modrm.ea);
-					result = dst + src;
-					cpu_write_word(cpu, modrm.ea, result);
+					result = (uint32_t)dst + (uint32_t)src;
+					cpu_write_word(cpu, modrm.ea, result & 0xFFFF);
 				} else {
 					uint16_t *rm_ptr = get_reg16_ptr(cpu, modrm.rm);
 					dst = *rm_ptr;
-					result = dst + src;
-					*rm_ptr = result;
+					result = (uint32_t)dst + (uint32_t)src;
+					*rm_ptr = result & 0xFFFF;
 				}
 			}
 		}
@@ -1988,7 +1989,8 @@ static inline void adc_op(X86Cpu *cpu)
 		case 0x13:  /* ADC r16, r/m16 */
 		{
 			ModRM modrm = decode_modrm(cpu, pc + 1);
-			uint16_t src, dst, result;
+			uint16_t src, dst;
+			uint32_t result;
 
 			if (is_byte) {
 				if (opcode == 0x10 || opcode == 0x11) {
@@ -2014,37 +2016,36 @@ static inline void adc_op(X86Cpu *cpu)
 				}
 			}
 
-			result = dst + src + carry;
+			result = (uint32_t)dst + (uint32_t)src + (uint32_t)carry;
 
 			/* Update flags */
-			chk_carry_add(cpu, (uint32_t)dst + src + carry, is_byte);
+			chk_carry_add(cpu, result, is_byte);
 			chk_overflow_add(cpu, src + carry, dst, result, is_byte);
 			chk_aux_carry_add(cpu, (uint8_t)src + carry, (uint8_t)dst);
 			update_flags_szp(cpu, result, is_byte);
 
 			/* Write result */
 			if (is_byte) {
-				result &= 0xFF;
 				if (opcode == 0x10) {
 					if (modrm.is_memory)
-						cpu_write_byte(cpu, modrm.ea, result);
+						cpu_write_byte(cpu, modrm.ea, result & 0xFF);
 					else
-						*get_reg8_ptr(cpu, modrm.rm) = result;
+						*get_reg8_ptr(cpu, modrm.rm) = result & 0xFF;
 				} else {
-					*get_reg8_ptr(cpu, modrm.reg) = result;
+					*get_reg8_ptr(cpu, modrm.reg) = result & 0xFF;
 				}
 			} else {
 				if (opcode == 0x11) {
 					if (modrm.is_memory)
-						cpu_write_word(cpu, modrm.ea, result);
+						cpu_write_word(cpu, modrm.ea, result & 0xFFFF);
 					else
-						*get_reg16_ptr(cpu, modrm.rm) = result;
+						*get_reg16_ptr(cpu, modrm.rm) = result & 0xFFFF;
 				} else {
-					*get_reg16_ptr(cpu, modrm.reg) = result;
+					*get_reg16_ptr(cpu, modrm.reg) = result & 0xFFFF;
 				}
 			}
 
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
@@ -2097,7 +2098,8 @@ static inline void sbb_op(X86Cpu *cpu)
 		case 0x1B:  /* SBB r16, r/m16 */
 		{
 			ModRM modrm = decode_modrm(cpu, pc + 1);
-			uint16_t src, dst, result;
+			uint16_t src, dst;
+			uint32_t result;
 
 			if (is_byte) {
 				if (opcode == 0x18) {
@@ -2121,7 +2123,8 @@ static inline void sbb_op(X86Cpu *cpu)
 				}
 			}
 
-			result = dst - src - carry;
+			/* Perform subtraction with borrow in 32-bit to capture underflow */
+			result = (uint32_t)dst - (uint32_t)src - (uint32_t)carry;
 
 			/* Update flags */
 			if (is_byte) {
@@ -2137,27 +2140,26 @@ static inline void sbb_op(X86Cpu *cpu)
 
 			/* Write result */
 			if (is_byte) {
-				result &= 0xFF;
 				if (opcode == 0x18) {
 					if (modrm.is_memory)
-						cpu_write_byte(cpu, modrm.ea, result);
+						cpu_write_byte(cpu, modrm.ea, result & 0xFF);
 					else
-						*get_reg8_ptr(cpu, modrm.rm) = result;
+						*get_reg8_ptr(cpu, modrm.rm) = result & 0xFF;
 				} else {
-					*get_reg8_ptr(cpu, modrm.reg) = result;
+					*get_reg8_ptr(cpu, modrm.reg) = result & 0xFF;
 				}
 			} else {
 				if (opcode == 0x19) {
 					if (modrm.is_memory)
-						cpu_write_word(cpu, modrm.ea, result);
+						cpu_write_word(cpu, modrm.ea, result & 0xFFFF);
 					else
-						*get_reg16_ptr(cpu, modrm.rm) = result;
+						*get_reg16_ptr(cpu, modrm.rm) = result & 0xFFFF;
 				} else {
-					*get_reg16_ptr(cpu, modrm.reg) = result;
+					*get_reg16_ptr(cpu, modrm.reg) = result & 0xFFFF;
 				}
 			}
 
-			cpu->ip += modrm.length;
+			cpu->ip += 1 + modrm.length;
 			break;
 		}
 
