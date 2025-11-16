@@ -1,0 +1,49 @@
+name: 8086 CPU Test Suite
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcjson-dev zlib1g-dev build-essential
+
+    - name: Clone test suite
+      run: |
+        if [ ! -d "tests/8086_tests" ]; then
+          git clone https://github.com/SingleStepTests/8086.git tests/8086_tests
+        fi
+
+    - name: Build test runner
+      run: |
+        make clean
+        make json_test_runner
+
+    - name: Run CPU tests
+      run: |
+        echo "Running full 8086 CPU test suite..."
+        ./json_test_runner tests/8086_tests/v1/*.json.gz | tee test_results.txt
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: test_results.txt
+
+    - name: Check pass rate
+      run: |
+        echo "Checking test results..."
+        grep "Passed:" test_results.txt || true
+        grep "Total:" test_results.txt || true

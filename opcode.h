@@ -2594,30 +2594,70 @@ static inline void cmps(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xA6);
 
-	uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
-	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
+	/* Handle REP/REPE/REPNE prefixes */
+	if (cpu->rep_prefix == 0xF3 || cpu->rep_prefix == 0xF2) {  /* REP/REPE or REPNE */
+		bool is_repe = (cpu->rep_prefix == 0xF3);
 
-	if (is_byte) {
-		uint8_t src = cpu_read_byte(cpu, src_addr);
-		uint8_t dst = cpu_read_byte(cpu, dst_addr);
-		uint8_t result = dst - src;
+		while (cpu->cx.w != 0) {
+			uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+			uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
-		chk_overflow_sub(cpu, src, dst, result, true);
-		chk_aux_carry_sub(cpu, src, dst);
-		update_flags_szp(cpu, result, true);
+			if (is_byte) {
+				uint8_t src = cpu_read_byte(cpu, src_addr);
+				uint8_t dst = cpu_read_byte(cpu, dst_addr);
+				uint8_t result = dst - src;
+
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, src, dst, result, true);
+				chk_aux_carry_sub(cpu, src, dst);
+				update_flags_szp(cpu, result, true);
+			} else {
+				uint16_t src = cpu_read_word(cpu, src_addr);
+				uint16_t dst = cpu_read_word(cpu, dst_addr);
+				uint16_t result = dst - src;
+
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, src, dst, result, false);
+				chk_aux_carry_sub(cpu, (uint8_t)src, (uint8_t)dst);
+				update_flags_szp(cpu, result, false);
+			}
+
+			adjust_si_di(cpu, is_byte);
+			cpu->cx.w--;
+
+			/* Break if condition not met */
+			bool zf_set = (cpu->flags & FLAGS_ZF) != 0;
+			if (is_repe && !zf_set) break;  /* REPE: stop if not equal (ZF=0) */
+			if (!is_repe && zf_set) break;  /* REPNE: stop if equal (ZF=1) */
+		}
 	} else {
-		uint16_t src = cpu_read_word(cpu, src_addr);
-		uint16_t dst = cpu_read_word(cpu, dst_addr);
-		uint16_t result = dst - src;
+		/* Single operation without REP */
+		uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+		uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
-		chk_overflow_sub(cpu, src, dst, result, false);
-		chk_aux_carry_sub(cpu, (uint8_t)src, (uint8_t)dst);
-		update_flags_szp(cpu, result, false);
+		if (is_byte) {
+			uint8_t src = cpu_read_byte(cpu, src_addr);
+			uint8_t dst = cpu_read_byte(cpu, dst_addr);
+			uint8_t result = dst - src;
+
+			cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, src, dst, result, true);
+			chk_aux_carry_sub(cpu, src, dst);
+			update_flags_szp(cpu, result, true);
+		} else {
+			uint16_t src = cpu_read_word(cpu, src_addr);
+			uint16_t dst = cpu_read_word(cpu, dst_addr);
+			uint16_t result = dst - src;
+
+			cpu->flags = (cpu->flags & ~FLAGS_CF) | ((dst < src) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, src, dst, result, false);
+			chk_aux_carry_sub(cpu, (uint8_t)src, (uint8_t)dst);
+			update_flags_szp(cpu, result, false);
+		}
+
+		adjust_si_di(cpu, is_byte);
 	}
 
-	adjust_si_di(cpu, is_byte);
 	cpu->ip++;
 }
 
@@ -2630,28 +2670,67 @@ static inline void scas(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAE);
 
-	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
+	/* Handle REP/REPE/REPNE prefixes */
+	if (cpu->rep_prefix == 0xF3 || cpu->rep_prefix == 0xF2) {  /* REP/REPE or REPNE */
+		bool is_repe = (cpu->rep_prefix == 0xF3);
 
-	if (is_byte) {
-		uint8_t dst = cpu_read_byte(cpu, dst_addr);
-		uint8_t result = cpu->ax.l - dst;
+		while (cpu->cx.w != 0) {
+			uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.l < dst) ? FLAGS_CF : 0);
-		chk_overflow_sub(cpu, dst, cpu->ax.l, result, true);
-		chk_aux_carry_sub(cpu, dst, cpu->ax.l);
-		update_flags_szp(cpu, result, true);
+			if (is_byte) {
+				uint8_t dst = cpu_read_byte(cpu, dst_addr);
+				uint8_t result = cpu->ax.l - dst;
 
-		cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.l < dst) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, dst, cpu->ax.l, result, true);
+				chk_aux_carry_sub(cpu, dst, cpu->ax.l);
+				update_flags_szp(cpu, result, true);
+
+				cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+			} else {
+				uint16_t dst = cpu_read_word(cpu, dst_addr);
+				uint16_t result = cpu->ax.w - dst;
+
+				cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.w < dst) ? FLAGS_CF : 0);
+				chk_overflow_sub(cpu, dst, cpu->ax.w, result, false);
+				chk_aux_carry_sub(cpu, (uint8_t)dst, cpu->ax.l);
+				update_flags_szp(cpu, result, false);
+
+				cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+			}
+
+			cpu->cx.w--;
+
+			/* Break if condition not met */
+			bool zf_set = (cpu->flags & FLAGS_ZF) != 0;
+			if (is_repe && !zf_set) break;  /* REPE: stop if not equal (ZF=0) */
+			if (!is_repe && zf_set) break;  /* REPNE: stop if equal (ZF=1) */
+		}
 	} else {
-		uint16_t dst = cpu_read_word(cpu, dst_addr);
-		uint16_t result = cpu->ax.w - dst;
+		/* Single operation without REP */
+		uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-		cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.w < dst) ? FLAGS_CF : 0);
-		chk_overflow_sub(cpu, dst, cpu->ax.w, result, false);
-		chk_aux_carry_sub(cpu, (uint8_t)dst, cpu->ax.l);
-		update_flags_szp(cpu, result, false);
+		if (is_byte) {
+			uint8_t dst = cpu_read_byte(cpu, dst_addr);
+			uint8_t result = cpu->ax.l - dst;
 
-		cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+			cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.l < dst) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, dst, cpu->ax.l, result, true);
+			chk_aux_carry_sub(cpu, dst, cpu->ax.l);
+			update_flags_szp(cpu, result, true);
+
+			cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+		} else {
+			uint16_t dst = cpu_read_word(cpu, dst_addr);
+			uint16_t result = cpu->ax.w - dst;
+
+			cpu->flags = (cpu->flags & ~FLAGS_CF) | ((cpu->ax.w < dst) ? FLAGS_CF : 0);
+			chk_overflow_sub(cpu, dst, cpu->ax.w, result, false);
+			chk_aux_carry_sub(cpu, (uint8_t)dst, cpu->ax.l);
+			update_flags_szp(cpu, result, false);
+
+			cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+		}
 	}
 
 	cpu->ip++;
@@ -2666,14 +2745,32 @@ static inline void lods(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAC);
 
-	uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+	/* Handle REP prefix */
+	if (cpu->rep_prefix == 0xF3) {  /* REP */
+		while (cpu->cx.w != 0) {
+			uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
 
-	if (is_byte) {
-		cpu->ax.l = cpu_read_byte(cpu, src_addr);
-		cpu->si += (cpu->flags & FLAGS_DF) ? -1 : 1;
+			if (is_byte) {
+				cpu->ax.l = cpu_read_byte(cpu, src_addr);
+				cpu->si += (cpu->flags & FLAGS_DF) ? -1 : 1;
+			} else {
+				cpu->ax.w = cpu_read_word(cpu, src_addr);
+				cpu->si += (cpu->flags & FLAGS_DF) ? -2 : 2;
+			}
+
+			cpu->cx.w--;
+		}
 	} else {
-		cpu->ax.w = cpu_read_word(cpu, src_addr);
-		cpu->si += (cpu->flags & FLAGS_DF) ? -2 : 2;
+		/* Single operation without REP */
+		uint32_t src_addr = cpu_calc_addr(cpu->ds, cpu->si);
+
+		if (is_byte) {
+			cpu->ax.l = cpu_read_byte(cpu, src_addr);
+			cpu->si += (cpu->flags & FLAGS_DF) ? -1 : 1;
+		} else {
+			cpu->ax.w = cpu_read_word(cpu, src_addr);
+			cpu->si += (cpu->flags & FLAGS_DF) ? -2 : 2;
+		}
 	}
 
 	cpu->ip++;
@@ -2688,14 +2785,32 @@ static inline void stos(X86Cpu *cpu)
 	uint8_t opcode = cpu_read_byte(cpu, pc);
 	bool is_byte = (opcode == 0xAA);
 
-	uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
+	/* Handle REP prefix */
+	if (cpu->rep_prefix == 0xF3) {  /* REP */
+		while (cpu->cx.w != 0) {
+			uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
 
-	if (is_byte) {
-		cpu_write_byte(cpu, dst_addr, cpu->ax.l);
-		cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+			if (is_byte) {
+				cpu_write_byte(cpu, dst_addr, cpu->ax.l);
+				cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+			} else {
+				cpu_write_word(cpu, dst_addr, cpu->ax.w);
+				cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+			}
+
+			cpu->cx.w--;
+		}
 	} else {
-		cpu_write_word(cpu, dst_addr, cpu->ax.w);
-		cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+		/* Single operation without REP */
+		uint32_t dst_addr = cpu_calc_addr(cpu->es, cpu->di);
+
+		if (is_byte) {
+			cpu_write_byte(cpu, dst_addr, cpu->ax.l);
+			cpu->di += (cpu->flags & FLAGS_DF) ? -1 : 1;
+		} else {
+			cpu_write_word(cpu, dst_addr, cpu->ax.w);
+			cpu->di += (cpu->flags & FLAGS_DF) ? -2 : 2;
+		}
 	}
 
 	cpu->ip++;
